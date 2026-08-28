@@ -1,5 +1,5 @@
 import EChart from './EChart'
-import { CATEGORICAL_PALETTE, CHART_GRID_LINE, CHART_TEXT_SECONDARY } from './theme'
+import { useChartTheme } from './theme'
 import type { EChartsOption } from 'echarts'
 
 export interface PayerComparisonChartProps {
@@ -16,26 +16,27 @@ function PayerComparisonChart({
   animation = true,
   emptyLabel = 'No data for this period.'
 }: PayerComparisonChartProps): React.JSX.Element {
+  const theme = useChartTheme()
   if (rows.length === 0) {
-    return <p style={{ color: 'var(--ev-c-text-2)', fontSize: 13 }}>{emptyLabel}</p>
+    return <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>{emptyLabel}</p>
   }
 
   const option: EChartsOption = {
-    color: [CATEGORICAL_PALETTE[0], CATEGORICAL_PALETTE[1]],
-    textStyle: { color: CHART_TEXT_SECONDARY },
-    legend: { top: 0, textStyle: { color: CHART_TEXT_SECONDARY } },
+    color: [theme.categorical[0], theme.categorical[1]],
+    textStyle: { color: theme.textSecondary },
+    legend: { top: 0, textStyle: { color: theme.textSecondary } },
     grid: { left: 140, right: 48, top: 32, bottom: 16 },
     tooltip: { trigger: 'axis', valueFormatter: (v) => `$${Number(v).toLocaleString()}` },
     xAxis: {
       type: 'value',
-      splitLine: { lineStyle: { color: CHART_GRID_LINE } },
-      axisLabel: { color: CHART_TEXT_SECONDARY, formatter: (v: number) => `$${v.toLocaleString()}` }
+      splitLine: { lineStyle: { color: theme.gridLine } },
+      axisLabel: { color: theme.textSecondary, formatter: (v: number) => `$${v.toLocaleString()}` }
     },
     yAxis: {
       type: 'category',
       data: rows.map((r) => r.payerName),
-      axisLine: { lineStyle: { color: CHART_GRID_LINE } },
-      axisLabel: { color: CHART_TEXT_SECONDARY }
+      axisLine: { lineStyle: { color: theme.gridLine } },
+      axisLabel: { color: theme.textSecondary }
     },
     series: [
       { name: seriesNames[0], type: 'bar', data: rows.map((r) => r.a), barMaxWidth: 16 },

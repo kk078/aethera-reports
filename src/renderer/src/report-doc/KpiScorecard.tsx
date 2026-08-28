@@ -8,7 +8,7 @@ function KpiTile({ label, value, sub }: KpiTileProps): React.JSX.Element {
   return (
     <div className="kpi-tile">
       <div className="kpi-tile-label">{label}</div>
-      <div className="kpi-tile-value">{value}</div>
+      <div className="kpi-tile-value tabular-nums">{value}</div>
       {sub && <div className="kpi-tile-sub">{sub}</div>}
     </div>
   )

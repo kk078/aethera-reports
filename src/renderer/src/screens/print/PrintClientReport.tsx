@@ -17,6 +17,17 @@ function PrintClientReport(): React.JSX.Element {
   const [trend, setTrend] = useState<FinancialTrendPoint[]>([])
   const [error, setError] = useState<string | null>(null)
 
+  // The print route's own CSS (report-document.css) is always
+  // white/ink, regardless of the interactive window's light/dark
+  // choice — this offscreen window shares the same origin/localStorage,
+  // so it would otherwise inherit whatever theme the user last picked
+  // and render its charts' grid/text/legend colors for THAT mode on a
+  // page that's always white. Force light here, unconditionally: this
+  // route never renders anything else.
+  useEffect(() => {
+    document.documentElement.dataset.theme = 'light'
+  }, [])
+
   useEffect(() => {
     if (!clientId || !period) return
     const id = Number(clientId)

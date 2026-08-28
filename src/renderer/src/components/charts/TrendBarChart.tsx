@@ -1,6 +1,6 @@
 import { forwardRef } from 'react'
 import EChart, { type EChartHandle } from './EChart'
-import { CATEGORICAL_PALETTE, CHART_GRID_LINE, CHART_TEXT_SECONDARY } from './theme'
+import { useChartTheme } from './theme'
 import type { EChartsOption } from 'echarts'
 
 export interface TrendSeries {
@@ -25,23 +25,24 @@ const TrendBarChart = forwardRef<EChartHandle, TrendBarChartProps>(function Tren
   { categories, series, animation = true, valueFormatter },
   ref
 ) {
+  const theme = useChartTheme()
   const option: EChartsOption = {
-    color: [...CATEGORICAL_PALETTE],
-    textStyle: { color: CHART_TEXT_SECONDARY },
-    legend: series.length > 1 ? { top: 0, textStyle: { color: CHART_TEXT_SECONDARY } } : undefined,
+    color: [...theme.categorical],
+    textStyle: { color: theme.textSecondary },
+    legend: series.length > 1 ? { top: 0, textStyle: { color: theme.textSecondary } } : undefined,
     grid: { left: 48, right: 16, top: series.length > 1 ? 32 : 16, bottom: 32 },
     tooltip: { trigger: 'axis' },
     xAxis: {
       type: 'category',
       data: categories,
-      axisLine: { lineStyle: { color: CHART_GRID_LINE } },
-      axisLabel: { color: CHART_TEXT_SECONDARY }
+      axisLine: { lineStyle: { color: theme.gridLine } },
+      axisLabel: { color: theme.textSecondary }
     },
     yAxis: {
       type: 'value',
-      splitLine: { lineStyle: { color: CHART_GRID_LINE } },
+      splitLine: { lineStyle: { color: theme.gridLine } },
       axisLabel: {
-        color: CHART_TEXT_SECONDARY,
+        color: theme.textSecondary,
         formatter: valueFormatter ? (value: number) => valueFormatter(value) : undefined
       }
     },

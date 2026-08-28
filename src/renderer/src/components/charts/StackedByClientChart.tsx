@@ -1,5 +1,5 @@
 import EChart from './EChart'
-import { CATEGORICAL_PALETTE, CHART_GRID_LINE, CHART_TEXT_SECONDARY } from './theme'
+import { useChartTheme } from './theme'
 import type { ArAgingByClientRow, ArAgingBuckets } from '../../../../shared/domain'
 import type { EChartsOption } from 'echarts'
 
@@ -15,27 +15,28 @@ function StackedByClientChart({
   rows,
   animation = true
 }: StackedByClientChartProps): React.JSX.Element {
+  const theme = useChartTheme()
   if (rows.length === 0) {
-    return <p style={{ color: 'var(--ev-c-text-2)', fontSize: 13 }}>No open claims.</p>
+    return <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No open claims.</p>
   }
 
   const option: EChartsOption = {
-    color: [...CATEGORICAL_PALETTE],
-    textStyle: { color: CHART_TEXT_SECONDARY },
-    legend: { top: 0, textStyle: { color: CHART_TEXT_SECONDARY } },
+    color: [...theme.categorical],
+    textStyle: { color: theme.textSecondary },
+    legend: { top: 0, textStyle: { color: theme.textSecondary } },
     grid: { left: 64, right: 16, top: 32, bottom: 48 },
     tooltip: { trigger: 'axis', valueFormatter: (v) => `$${Number(v).toLocaleString()}` },
     xAxis: {
       type: 'category',
       data: rows.map((r) => r.clientCode),
-      axisLine: { lineStyle: { color: CHART_GRID_LINE } },
-      axisLabel: { color: CHART_TEXT_SECONDARY, rotate: rows.length > 8 ? 30 : 0 }
+      axisLine: { lineStyle: { color: theme.gridLine } },
+      axisLabel: { color: theme.textSecondary, rotate: rows.length > 8 ? 30 : 0 }
     },
     yAxis: {
       type: 'value',
-      splitLine: { lineStyle: { color: CHART_GRID_LINE } },
+      splitLine: { lineStyle: { color: theme.gridLine } },
       axisLabel: {
-        color: CHART_TEXT_SECONDARY,
+        color: theme.textSecondary,
         formatter: (v: number) => `$${(v / 1000).toFixed(0)}k`
       }
     },

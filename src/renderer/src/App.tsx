@@ -1,5 +1,8 @@
+import { useEffect } from 'react'
 import { HashRouter, Routes, Route, Outlet } from 'react-router-dom'
 import Sidebar from './components/Sidebar'
+import { getBranding } from './lib/api'
+import { applyBrandAccentTint, isBrandAccentTintEnabled } from './lib/brand-tint'
 import Portfolio from './screens/Portfolio'
 import Clients from './screens/Clients'
 import ClientDetail from './screens/ClientDetail'
@@ -13,6 +16,16 @@ import Settings from './screens/Settings'
 import PrintClientReport from './screens/print/PrintClientReport'
 
 function AppLayout(): React.JSX.Element {
+  // "Apply brand accent to app" (Settings → Branding, off by default) —
+  // re-applied on every launch so the chrome stays tinted across
+  // restarts without needing to revisit Settings first.
+  useEffect(() => {
+    if (!isBrandAccentTintEnabled()) return
+    getBranding()
+      .then((branding) => applyBrandAccentTint(branding.primaryColor))
+      .catch(() => undefined)
+  }, [])
+
   return (
     <div className="app-shell">
       <Sidebar />

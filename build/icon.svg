@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!--
+    Aethera Reports app icon — an abstract ascending-bars mark on a teal
+    field, the tallest bar picked out in the app's "gold ink" accent (the
+    same two-color ledger system the rest of the UI uses: teal for
+    structure, gold for "this is the value that matters"). No text, no
+    Electron imagery, no fine strokes — three solid rounded bars read as
+    a distinct silhouette from 16px (taskbar) up to 512px (installer),
+    and are neutral enough for a white-label open-source project (not
+    tied to any one firm's branding).
+  -->
+  <rect width="512" height="512" rx="112" fill="#0E7D74" />
+  <rect x="81" y="250" width="90" height="130" rx="18" fill="#F6F4EC" />
+  <rect x="211" y="170" width="90" height="210" rx="18" fill="#F6F4EC" />
+  <rect x="341" y="90" width="90" height="290" rx="18" fill="#E3AE55" />
+</svg>

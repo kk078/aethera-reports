@@ -177,15 +177,15 @@ function Portfolio(): React.JSX.Element {
                     {report.client.name}
                   </Link>
                 </td>
-                <td>{fmtMoney(report.financials.grossCharges)}</td>
-                <td>{fmtPct(report.financials.netCollectionRatePct)}</td>
-                <td>{report.kpis.daysInAr ?? '—'}</td>
-                <td>{fmtPct(report.kpis.denialRatePct)}</td>
+                <td className="tabular-nums">{fmtMoney(report.financials.grossCharges)}</td>
+                <td className="tabular-nums">{fmtPct(report.financials.netCollectionRatePct)}</td>
+                <td className="tabular-nums">{report.kpis.daysInAr ?? '—'}</td>
+                <td className="tabular-nums">{fmtPct(report.kpis.denialRatePct)}</td>
                 <td style={{ width: 90 }}>
                   {sparkline.length > 1 ? (
                     <Sparkline values={sparkline} />
                   ) : (
-                    <span style={{ color: 'var(--ev-c-text-2)', fontSize: 11 }}>n/a</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>n/a</span>
                   )}
                 </td>
               </tr>

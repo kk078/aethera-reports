@@ -1,6 +1,6 @@
 import { forwardRef } from 'react'
 import EChart, { type EChartHandle } from './EChart'
-import { CATEGORICAL_PALETTE, CHART_GRID_LINE, CHART_TEXT_SECONDARY } from './theme'
+import { useChartTheme } from './theme'
 import type { EChartsOption } from 'echarts'
 
 export interface PayerMixChartProps {
@@ -13,30 +13,31 @@ const PayerMixChart = forwardRef<EChartHandle, PayerMixChartProps>(function Paye
   { payerMix, animation = true },
   ref
 ) {
+  const theme = useChartTheme()
   if (payerMix.length === 0) {
-    return <p style={{ color: 'var(--ev-c-text-2)', fontSize: 13 }}>No claims in this period.</p>
+    return <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No claims in this period.</p>
   }
 
   const sorted = [...payerMix].sort((a, b) => a.charges - b.charges) // ascending for horizontal bar top-down read
 
   const option: EChartsOption = {
-    color: [CATEGORICAL_PALETTE[2]],
-    textStyle: { color: CHART_TEXT_SECONDARY },
+    color: [theme.categorical[2]],
+    textStyle: { color: theme.textSecondary },
     grid: { left: 140, right: 48, top: 16, bottom: 16 },
     tooltip: { trigger: 'axis', valueFormatter: (v) => `$${Number(v).toLocaleString()}` },
     xAxis: {
       type: 'value',
-      splitLine: { lineStyle: { color: CHART_GRID_LINE } },
+      splitLine: { lineStyle: { color: theme.gridLine } },
       axisLabel: {
-        color: CHART_TEXT_SECONDARY,
+        color: theme.textSecondary,
         formatter: (v: number) => `$${(v / 1000).toFixed(0)}k`
       }
     },
     yAxis: {
       type: 'category',
       data: sorted.map((p) => p.payerName),
-      axisLine: { lineStyle: { color: CHART_GRID_LINE } },
-      axisLabel: { color: CHART_TEXT_SECONDARY }
+      axisLine: { lineStyle: { color: theme.gridLine } },
+      axisLabel: { color: theme.textSecondary }
     },
     series: [
       {
@@ -47,7 +48,7 @@ const PayerMixChart = forwardRef<EChartHandle, PayerMixChartProps>(function Paye
         label: {
           show: true,
           position: 'right',
-          color: CHART_TEXT_SECONDARY,
+          color: theme.textSecondary,
           formatter: (p) => `$${Number(p.value).toLocaleString()}`
         }
       }

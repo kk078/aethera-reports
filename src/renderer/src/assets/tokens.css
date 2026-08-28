@@ -1,0 +1,268 @@
+/**
+ * Aethera Reports design tokens — the single source of truth for every
+ * color, radius, spacing, and type value in the app (frontend-design
+ * skill: "an intentional, distinctive visual direction instead of
+ * templated defaults").
+ *
+ * Direction — "ledger ink": this is a revenue-cycle back-office tool,
+ * used for hours at a stretch by people scanning dense financial
+ * tables, not a marketing surface. The palette borrows the old paper-
+ * ledger convention of a second ink color for what matters: a deep
+ * TEAL carries structure/action (nav, links, primary buttons), and a
+ * sparing GOLD marks "this is the value that matters" (a KPI that's up,
+ * a highlighted total, an accent bar) — never both at once, gold is
+ * never a whole background. Neither is Bootstrap-blue-and-white or a
+ * near-black+neon SaaS default; both are picked for THIS subject (RCM
+ * sits at the intersection of healthcare and finance — teal reads as
+ * neither pure corporate-blue nor clinical-green, deliberately).
+ *
+ * Chart colors are driven by these SAME variables (see
+ * `components/charts/theme.ts`, which reads them via
+ * `getComputedStyle`) — the categorical/status steps below are the
+ * `dataviz` skill's own validated reference palette, re-validated
+ * against this file's actual --surface/--chart-surface values for both
+ * modes (see the session's design notes for the two
+ * `validate_palette.js` runs).
+ *
+ * Mode switching: explicit `[data-theme]` (set by
+ * `lib/theme-context.tsx`, persisted to localStorage) always wins;
+ * `prefers-color-scheme` governs only the brief window before that
+ * script runs (this exact three-layer pattern — :root default,
+ * OS-media guarded by :not([data-theme="light"]), explicit
+ * [data-theme="dark"] — is the dataviz skill's own documented pattern
+ * for keeping a toggle and the OS setting from fighting each other).
+ */
+
+:root {
+  /* ---- Radii ---- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+
+  /* ---- Spacing scale ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+
+  /* ---- Type ---- */
+  /* System-native sans throughout (dataviz skill's own typeface guidance:
+     "no display or serif face anywhere" even for the reference palette's
+     own hero figures) — figures use `font-variant-numeric: tabular-nums`
+     where columns must align (data tables, KPI values), not a distinct
+     monospace family; see .tabular-nums below. */
+  --font-ui:
+    system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial,
+    sans-serif;
+
+  --text-2xs: 0.6875rem; /* 11px — micro labels */
+  --text-xs: 0.75rem; /* 12px — captions, table meta */
+  --text-sm: 0.8125rem; /* 13px — table cells, form labels */
+  --text-base: 0.9375rem; /* 15px — body default */
+  --text-md: 1.0625rem; /* 17px — section headers */
+  --text-lg: 1.375rem; /* 22px — screen titles */
+  --text-xl: 1.75rem; /* 28px — big KPI numbers */
+  --text-2xl: 2.25rem; /* 36px — hero KPI */
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --line-tight: 1.25;
+  --line-base: 1.5;
+
+  /* Structural device (frontend-design skill: "structure is information")
+     — eyebrow/section labels get tracked uppercase; this is the ONE
+     tracking value used everywhere so it never looks accidental. */
+  --tracking-label: 0.06em;
+
+  /* ---- Motion ---- */
+  --transition-fast: 120ms ease;
+  --transition-base: 180ms ease;
+
+  /* ---- Light mode (default) ---- */
+  color-scheme: light;
+
+  --bg: #f4f5f2;
+  --surface: #ffffff;
+  --surface-raised: #fbfbf9;
+  --surface-sunken: #edeeea;
+  --border: #dcdfda;
+  --border-strong: #c3c7c0;
+
+  --text: #1b2320;
+  --text-muted: #5b6660;
+  --text-faint: #8b948e;
+  --text-on-accent: #f6f4ec;
+  --text-on-gold: #241a08;
+
+  --accent: #0f7a72;
+  --accent-strong: #0b5f59;
+  --accent-tint: #e3f2ef;
+
+  --gold: #a8791e;
+  --gold-strong: #8a6318;
+  --gold-tint: #f5ebd3;
+
+  --danger: #b23b3b;
+  --danger-strong: #8f2e2e;
+  --danger-tint: #f7e7e5;
+
+  --success: #1f7a4d;
+  --success-tint: #e2f2e8;
+
+  --focus-ring: #0f7a72;
+
+  --shadow-sm: 0 1px 2px rgba(27, 35, 32, 0.06);
+  --shadow-md: 0 4px 16px rgba(27, 35, 32, 0.1);
+
+  /* ---- Chart chrome (read live by components/charts/theme.ts) ---- */
+  --chart-surface: var(--surface);
+  --chart-text: var(--text);
+  --chart-text-secondary: var(--text-muted);
+  --chart-grid: #e1e0d9;
+  --chart-axis: #c3c2b7;
+
+  /* dataviz skill's validated reference categorical order (light column),
+     re-validated against --chart-surface #ffffff / page-plane #f4f5f2 —
+     ALL CHECKS PASS, 4 slots in the documented sub-3:1 relief band
+     (mitigated: every chart here already ships a legend + axis labels). */
+  --chart-cat-1: #2a78d6;
+  --chart-cat-2: #eb6834;
+  --chart-cat-3: #1baf7a;
+  --chart-cat-4: #eda100;
+  --chart-cat-5: #e87ba4;
+  --chart-cat-6: #008300;
+  --chart-cat-7: #4a3aa7;
+  --chart-cat-8: #e34948;
+
+  /* Status palette — fixed, mode-invariant per the dataviz skill ("never
+     themed"); declared once here so nothing else re-derives it. */
+  --status-good: #0ca30c;
+  --status-warning: #fab219;
+  --status-serious: #ec835a;
+  --status-critical: #d03b3b;
+
+  /* Diverging pair (blue<->red, neutral gray midpoint) — light column. */
+  --chart-diverging-negative: var(--chart-cat-1);
+  --chart-diverging-neutral: #f0efec;
+  --chart-diverging-positive: var(--chart-cat-8);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --bg: #12161c;
+    --surface: #1b222b;
+    --surface-raised: #232b36;
+    --surface-sunken: #0d1116;
+    --border: #313b47;
+    --border-strong: #445062;
+
+    --text: #e7e7e2;
+    --text-muted: #9aa5a2;
+    --text-faint: #6b7570;
+    --text-on-accent: #0a1512;
+    --text-on-gold: #241a08;
+
+    --accent: #3fc6b8;
+    --accent-strong: #63d8cc;
+    --accent-tint: #163330;
+
+    --gold: #d9a94a;
+    --gold-strong: #e8bd6a;
+    --gold-tint: #2e2717;
+
+    --danger: #e0837e;
+    --danger-strong: #ea9d99;
+    --danger-tint: #3a2020;
+
+    --success: #4fbf9b;
+    --success-tint: #16332a;
+
+    --focus-ring: #3fc6b8;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.45);
+
+    --chart-grid: #2c2c2a;
+    --chart-axis: #383835;
+
+    /* dataviz skill's reference categorical order (dark column),
+       re-validated against --chart-surface #1b222b / page-plane #12161c
+       — ALL CHECKS PASS, all 8 slots clear 3:1 contrast. */
+    --chart-cat-1: #3987e5;
+    --chart-cat-2: #d95926;
+    --chart-cat-3: #199e70;
+    --chart-cat-4: #c98500;
+    --chart-cat-5: #d55181;
+    --chart-cat-6: #008300;
+    --chart-cat-7: #9085e9;
+    --chart-cat-8: #e66767;
+
+    --chart-diverging-negative: var(--chart-cat-1);
+    --chart-diverging-neutral: #383835;
+    --chart-diverging-positive: var(--chart-cat-8);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #12161c;
+  --surface: #1b222b;
+  --surface-raised: #232b36;
+  --surface-sunken: #0d1116;
+  --border: #313b47;
+  --border-strong: #445062;
+
+  --text: #e7e7e2;
+  --text-muted: #9aa5a2;
+  --text-faint: #6b7570;
+  --text-on-accent: #0a1512;
+  --text-on-gold: #241a08;
+
+  --accent: #3fc6b8;
+  --accent-strong: #63d8cc;
+  --accent-tint: #163330;
+
+  --gold: #d9a94a;
+  --gold-strong: #e8bd6a;
+  --gold-tint: #2e2717;
+
+  --danger: #e0837e;
+  --danger-strong: #ea9d99;
+  --danger-tint: #3a2020;
+
+  --success: #4fbf9b;
+  --success-tint: #16332a;
+
+  --focus-ring: #3fc6b8;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.45);
+
+  --chart-grid: #2c2c2a;
+  --chart-axis: #383835;
+
+  --chart-cat-1: #3987e5;
+  --chart-cat-2: #d95926;
+  --chart-cat-3: #199e70;
+  --chart-cat-4: #c98500;
+  --chart-cat-5: #d55181;
+  --chart-cat-6: #008300;
+  --chart-cat-7: #9085e9;
+  --chart-cat-8: #e66767;
+
+  --chart-diverging-negative: var(--chart-cat-1);
+  --chart-diverging-neutral: #383835;
+  --chart-diverging-positive: var(--chart-cat-8);
+}

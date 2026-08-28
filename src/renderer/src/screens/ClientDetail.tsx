@@ -211,7 +211,7 @@ function ClientDetail(): React.JSX.Element {
       {loading && <p>Loading…</p>}
 
       {report && branding && !loading && (
-        <div style={{ background: '#fff', padding: 24, borderRadius: 8 }}>
+        <div className="report-doc-preview-frame">
           <ReportDocument report={report} branding={branding} trend={trend} mode="interactive" />
         </div>
       )}

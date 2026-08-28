@@ -1,6 +1,6 @@
 import { forwardRef } from 'react'
 import EChart, { type EChartHandle } from './EChart'
-import { CATEGORICAL_PALETTE, CHART_GRID_LINE, CHART_TEXT_SECONDARY } from './theme'
+import { useChartTheme } from './theme'
 import type { EChartsOption } from 'echarts'
 
 export interface DenialsParetoChartProps {
@@ -20,6 +20,7 @@ export interface DenialsParetoChartProps {
  */
 const DenialsParetoChart = forwardRef<EChartHandle, DenialsParetoChartProps>(
   function DenialsParetoChart({ denialsByRootCause, animation = true }, ref) {
+    const theme = useChartTheme()
     const entries = Object.entries(denialsByRootCause).sort((a, b) => b[1] - a[1])
     const total = entries.reduce((sum, [, count]) => sum + count, 0)
 
@@ -29,9 +30,9 @@ const DenialsParetoChart = forwardRef<EChartHandle, DenialsParetoChartProps>(
     }, [])
 
     const option: EChartsOption = {
-      color: [CATEGORICAL_PALETTE[1], CATEGORICAL_PALETTE[0]],
-      textStyle: { color: CHART_TEXT_SECONDARY },
-      legend: { top: 0, textStyle: { color: CHART_TEXT_SECONDARY } },
+      color: [theme.categorical[1], theme.categorical[0]],
+      textStyle: { color: theme.textSecondary },
+      legend: { top: 0, textStyle: { color: theme.textSecondary } },
       grid: { left: 48, right: 16, top: 32, bottom: 48 },
       tooltip: {
         trigger: 'axis',
@@ -45,14 +46,14 @@ const DenialsParetoChart = forwardRef<EChartHandle, DenialsParetoChartProps>(
       xAxis: {
         type: 'category',
         data: entries.map(([cause]) => cause),
-        axisLine: { lineStyle: { color: CHART_GRID_LINE } },
-        axisLabel: { color: CHART_TEXT_SECONDARY, rotate: entries.length > 5 ? 30 : 0 }
+        axisLine: { lineStyle: { color: theme.gridLine } },
+        axisLabel: { color: theme.textSecondary, rotate: entries.length > 5 ? 30 : 0 }
       },
       yAxis: {
         type: 'value',
         name: 'Denials',
-        splitLine: { lineStyle: { color: CHART_GRID_LINE } },
-        axisLabel: { color: CHART_TEXT_SECONDARY }
+        splitLine: { lineStyle: { color: theme.gridLine } },
+        axisLabel: { color: theme.textSecondary }
       },
       series: [
         { name: 'Count', type: 'bar', data: entries.map(([, count]) => count), barMaxWidth: 40 },
@@ -67,7 +68,7 @@ const DenialsParetoChart = forwardRef<EChartHandle, DenialsParetoChartProps>(
     }
 
     if (entries.length === 0) {
-      return <p style={{ color: 'var(--ev-c-text-2)', fontSize: 13 }}>No denials in this period.</p>
+      return <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>No denials in this period.</p>
     }
 
     return <EChart ref={ref} option={option} animation={animation} height={280} />

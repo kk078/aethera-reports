@@ -40,7 +40,8 @@
     "server": "vite-node server/src/index.ts",
     "server:user": "vite-node server/src/cli.ts --",
     "e2e:server-mode": "vite-node scripts/e2e-server-mode.ts",
-    "e2e:portal": "vite-node scripts/e2e-portal.ts"
+    "e2e:portal": "vite-node scripts/e2e-portal.ts",
+    "generate:icons": "vite-node scripts/generate-icons.ts"
   },
   "dependencies": {
     "@duckdb/node-api": "1.5.5-r.4",
@@ -84,9 +85,11 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "jszip": "^3.10.1",
+    "png2icons": "^2.0.1",
     "prettier": "^3.7.4",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
+    "sharp": "^0.35.4",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11",
     "wrangler": "^4.127.0"

@@ -6,7 +6,7 @@ import ArAgingChart from '../components/charts/ArAgingChart'
 import DenialsParetoChart from '../components/charts/DenialsParetoChart'
 import PayerMixChart from '../components/charts/PayerMixChart'
 import type { EChartHandle } from '../components/charts/EChart'
-import { CHART_SURFACE } from '../components/charts/theme'
+import { PRINT_CHART_SURFACE } from '../components/charts/theme'
 import { signalPrintReady } from '../lib/api'
 import './report-document.css'
 
@@ -56,7 +56,7 @@ function ReportDocument({
       // rather than branching this component on the export target.
       const chartImages: Record<string, string> = {}
       const capture = (name: string, ref: React.RefObject<EChartHandle | null>): void => {
-        const dataUrl = ref.current?.getDataURL(CHART_SURFACE)
+        const dataUrl = ref.current?.getDataURL(PRINT_CHART_SURFACE)
         if (dataUrl) chartImages[name] = dataUrl
       }
       capture('trend', trendChartRef)

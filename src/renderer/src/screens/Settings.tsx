@@ -10,6 +10,11 @@ import type {
   ReferenceApiCacheRefreshResult
 } from '../../../shared/domain'
 import {
+  applyBrandAccentTint,
+  isBrandAccentTintEnabled,
+  setBrandAccentTintEnabled
+} from '../lib/brand-tint'
+import {
   getAutomationInboxSettings,
   getBackupStatus,
   getBranding,
@@ -597,6 +602,7 @@ function BrandingSection(): React.JSX.Element {
   const [footerDisclaimer, setFooterDisclaimer] = useState('')
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const [accentTintOn, setAccentTintOn] = useState(false)
 
   function applyToForm(b: Branding): void {
     setBranding(b)
@@ -608,7 +614,14 @@ function BrandingSection(): React.JSX.Element {
 
   useEffect(() => {
     getBranding().then(applyToForm)
+    setAccentTintOn(isBrandAccentTintEnabled())
   }, [])
+
+  function handleToggleAccentTint(enabled: boolean): void {
+    setAccentTintOn(enabled)
+    setBrandAccentTintEnabled(enabled)
+    applyBrandAccentTint(enabled ? (branding?.primaryColor ?? primaryColor) : null)
+  }
 
   async function handleSave(event: React.FormEvent): Promise<void> {
     event.preventDefault()
@@ -622,6 +635,7 @@ function BrandingSection(): React.JSX.Element {
         footerDisclaimer: footerDisclaimer.trim() === '' ? null : footerDisclaimer
       })
       applyToForm(updated)
+      if (accentTintOn) applyBrandAccentTint(updated.primaryColor)
       setMessage('Saved.')
     } catch (error) {
       setMessage(String(error))
@@ -685,7 +699,7 @@ function BrandingSection(): React.JSX.Element {
                 style={{ maxHeight: 40, marginTop: 4 }}
               />
             ) : (
-              <span style={{ color: 'var(--ev-c-text-2)' }}>No logo set</span>
+              <span style={{ color: 'var(--text-muted)' }}>No logo set</span>
             )}
           </label>
           <button type="button" onClick={() => void handlePickLogo()}>
@@ -694,6 +708,15 @@ function BrandingSection(): React.JSX.Element {
           <button type="submit" disabled={saving}>
             {saving ? 'Saving…' : 'Save branding'}
           </button>
+          <label className="format-checkboxes">
+            <input
+              type="checkbox"
+              checked={accentTintOn}
+              onChange={(e) => handleToggleAccentTint(e.target.checked)}
+            />
+            Apply brand accent to app (off by default — tints the app&apos;s accent color only;
+            reports/exports already use branding fully either way)
+          </label>
         </form>
       )}
     </>
