@@ -243,7 +243,7 @@ describe('server API', () => {
       expect((updateRes.json() as { contractRate: number }).contractRate).toBeCloseTo(0.06)
     })
 
-    it('runs a CSV import via RPC (a real local file path, as the desktop client would send after resolving one) and reflects it in buildClientReport', async () => {
+    it('refuses to expose the filesystem-path import methods over HTTP (security regression guard) while an uploaded import still reflects in buildClientReport', async () => {
       await app.inject({
         method: 'POST',
         url: '/api/rpc/createClient',
@@ -251,18 +251,42 @@ describe('server API', () => {
         payload: { code: 'RPCIMP', name: 'RPC Import Co' }
       })
 
+      // These four take a server-filesystem path and MUST NOT be routable
+      // over HTTP — an authenticated caller could otherwise read/import any
+      // file the server process can see. Remote imports go through
+      // /api/import/upload only.
+      for (const method of [
+        'runCsvImport',
+        'runX12Import',
+        'detectImportFileKind',
+        'previewX12Import'
+      ]) {
+        const res = await app.inject({
+          method: 'POST',
+          url: `/api/rpc/${method}`,
+          headers: { authorization: `Bearer ${token}` },
+          payload: { filePath: '/etc/hostname', clientCode: 'RPCIMP', templateId: 'x' }
+        })
+        expect(res.statusCode).toBe(404)
+      }
+
+      const { body, contentType } = buildMultipartBody(
+        { clientCode: 'RPCIMP', templateId: 'tebra-claim-export' },
+        {
+          fieldName: 'file',
+          filename: 'tebra-claim-export.csv',
+          contentType: 'text/csv',
+          content: readFileSync(join(FIXTURES_DIR, 'tebra-claim-export.csv'))
+        }
+      )
       const importRes = await app.inject({
         method: 'POST',
-        url: '/api/rpc/runCsvImport',
-        headers: { authorization: `Bearer ${token}` },
-        payload: {
-          filePath: join(FIXTURES_DIR, 'tebra-claim-export.csv'),
-          templateId: 'tebra-claim-export',
-          clientCode: 'RPCIMP'
-        }
+        url: '/api/import/upload',
+        headers: { authorization: `Bearer ${token}`, 'content-type': contentType },
+        payload: body
       })
       expect(importRes.statusCode).toBe(200)
-      const job = importRes.json() as { status: string; rowsLoaded: number }
+      const { job } = importRes.json() as { job: { status: string; rowsLoaded: number } }
       expect(job.status).toBe('succeeded')
       expect(job.rowsLoaded).toBeGreaterThan(0)
 

@@ -60,10 +60,8 @@ import {
   emptyRequestSchema,
   encryptedSecretInputSchema,
   exportAuditLogRowSchema,
-  filePathRequestSchema,
   financialTrendPointSchema,
   getMonthlySummaryInputSchema,
-  importFileKindSchema,
   importJobSchema,
   jobIdRequestSchema,
   listDenialsInputSchema,
@@ -80,11 +78,8 @@ import {
   referenceApiCacheRefreshResultSchema,
   referenceApiSettingsInputSchema,
   referenceApiSettingsSchema,
-  runCsvImportInputSchema,
-  runX12ImportInputSchema,
   templateIdRequestSchema,
-  topAgedClaimRowSchema,
-  x12ParseSummarySchema
+  topAgedClaimRowSchema
 } from './domain'
 import type { IDataService, EncryptedSecretInput } from '../main/services/data-service'
 
@@ -171,32 +166,16 @@ export const rpcContract = {
     response: z.object({ job: importJobSchema.nullable() }),
     invoke: async (ds, req) => ({ job: await ds.getImportJob(req.jobId) })
   }),
-  runCsvImport: defineMethod({
-    request: runCsvImportInputSchema,
-    response: importJobSchema,
-    invoke: (ds, req) => ds.runCsvImport(req)
-  }),
+  // NOTE (security): the four import methods that take a filesystem path
+  // (runCsvImport, runX12Import, detectImportFileKind, previewX12Import)
+  // are deliberately NOT part of the HTTP RPC contract — a remote caller
+  // could otherwise point the server at any path it can read. Remote
+  // imports go exclusively through the multipart /api/import/upload
+  // endpoint; RemoteDataService performs detect/preview locally.
   listQuarantineRows: defineMethod({
     request: jobIdRequestSchema,
     response: z.object({ rows: z.array(quarantineRowSchema) }),
     invoke: async (ds, req) => ({ rows: await ds.listQuarantineRows(req.jobId) })
-  }),
-
-  // --- X12 835/837 ---
-  detectImportFileKind: defineMethod({
-    request: filePathRequestSchema,
-    response: z.object({ kind: importFileKindSchema }),
-    invoke: async (ds, req) => ({ kind: await ds.detectImportFileKind(req.filePath) })
-  }),
-  previewX12Import: defineMethod({
-    request: filePathRequestSchema,
-    response: z.object({ summary: x12ParseSummarySchema }),
-    invoke: async (ds, req) => ({ summary: await ds.previewX12Import(req.filePath) })
-  }),
-  runX12Import: defineMethod({
-    request: runX12ImportInputSchema,
-    response: importJobSchema,
-    invoke: (ds, req) => ds.runX12Import(req)
   }),
 
   // --- Manual entry ---

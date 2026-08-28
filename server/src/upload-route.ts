@@ -12,7 +12,7 @@
  * itself is never re-read.
  */
 import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 import type { FastifyInstance } from 'fastify'
 import type { MultipartFields } from '@fastify/multipart'
 import { importJobSchema } from '../../src/shared/domain'
@@ -25,8 +25,25 @@ function firstFieldValue(fields: MultipartFields, name: string): string | undefi
   return undefined
 }
 
+/**
+ * Collapse a user-supplied value into a single safe path segment. Dots are
+ * NOT in the allowed set — `..` would otherwise survive sanitization and
+ * escape `uploadsDir` via join(). A file extension is re-attached by the
+ * caller from the sanitized basename, so dropping dots here is safe.
+ */
 function sanitizePathSegment(value: string): string {
-  return value.replace(/[^A-Za-z0-9_.-]/g, '_')
+  const cleaned = value.replace(/[^A-Za-z0-9_-]/g, '_')
+  if (!cleaned || /^_+$/.test(cleaned)) {
+    throw new Error(`Invalid path segment: ${JSON.stringify(value)}`)
+  }
+  return cleaned
+}
+
+/** Sanitize a filename, preserving a harmless extension for detect(). */
+function sanitizeFileName(value: string): string {
+  const ext = /\.([A-Za-z0-9]{1,10})$/.exec(value)?.[1]
+  const base = sanitizePathSegment(ext ? value.slice(0, -(ext.length + 1)) : value)
+  return ext ? `${base}.${ext.toLowerCase()}` : base
 }
 
 export function registerUploadRoutes(
@@ -49,9 +66,22 @@ export function registerUploadRoutes(
     }
 
     const buffer = await data.toBuffer()
-    const clientDir = join(uploadsDir, sanitizePathSegment(clientCode))
+    let clientDir: string
+    let destPath: string
+    try {
+      clientDir = join(uploadsDir, sanitizePathSegment(clientCode))
+      destPath = join(clientDir, `${Date.now()}-${sanitizeFileName(data.filename)}`)
+    } catch {
+      reply.code(400)
+      return { error: 'Invalid clientCode or filename.' }
+    }
+    // Defense in depth: both segments are sanitized above, but never write
+    // outside uploadsDir even if that invariant is broken by a refactor.
+    if (!resolve(destPath).startsWith(resolve(uploadsDir) + sep)) {
+      reply.code(400)
+      return { error: 'Invalid upload path.' }
+    }
     await mkdir(clientDir, { recursive: true })
-    const destPath = join(clientDir, `${Date.now()}-${sanitizePathSegment(data.filename)}`)
     await writeFile(destPath, buffer)
 
     try {
