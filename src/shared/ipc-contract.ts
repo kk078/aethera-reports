@@ -17,6 +17,9 @@ import {
   analyticsScopeInputSchema,
   analyticsTrendInputSchema,
   arAgingByClientRowSchema,
+  automationInboxSettingsSchema,
+  automationRuleInputSchema,
+  automationRuleSchema,
   backupStatusSchema,
   batchExportInputSchema,
   batchExportResultSchema,
@@ -33,6 +36,11 @@ import {
   connectorTestResultSchema,
   daysInArTrendPointSchema,
   denialListRowSchema,
+  dryRunResultSchema,
+  emailSendQueueRowSchema,
+  emailSettingsInputSchema,
+  emailSettingsSchema,
+  exportAuditLogRowSchema,
   exportClientReportInputSchema,
   exportReportResultSchema,
   getMonthlySummaryInputSchema,
@@ -55,6 +63,9 @@ import {
   runConnectorSyncInputSchema,
   runCsvImportInputSchema,
   runX12ImportInputSchema,
+  scanResultSchema,
+  sendReportPackInputSchema,
+  sendReportPackResultSchema,
   topAgedClaimRowSchema,
   x12ParseSummarySchema
 } from './domain'
@@ -361,6 +372,82 @@ export const ipcContract = {
   'referenceApi:getCarcDescriptions': {
     request: z.object({ codes: z.array(z.string()) }),
     response: z.object({ descriptions: z.record(z.string(), z.string()) })
+  },
+
+  // --- Watch-folder auto-import (plan §11, Phase 2 chunk D) ---
+  'automation:getInboxSettings': {
+    request: emptyRequestSchema,
+    response: automationInboxSettingsSchema
+  },
+  'automation:setInboxRoot': {
+    request: z.object({ inboxRoot: z.string().nullable() }),
+    response: automationInboxSettingsSchema
+  },
+  'automation:setFolderTemplatePin': {
+    request: z.object({ clientCode: z.string().min(1), templateId: z.string().nullable() }),
+    response: automationInboxSettingsSchema
+  },
+  'automation:scanInboxNow': {
+    request: emptyRequestSchema,
+    response: scanResultSchema
+  },
+
+  // --- Report scheduler (plan §11) ---
+  'automation:listRules': {
+    request: emptyRequestSchema,
+    response: z.object({ rules: z.array(automationRuleSchema) })
+  },
+  'automation:saveRule': {
+    request: automationRuleInputSchema,
+    response: automationRuleSchema
+  },
+  'automation:deleteRule': {
+    request: z.object({ ruleId: z.string().min(1) }),
+    response: z.object({ ok: z.boolean() })
+  },
+  'automation:dryRunRule': {
+    request: z.object({ ruleId: z.string().min(1) }),
+    response: dryRunResultSchema
+  },
+  'automation:runRuleNow': {
+    request: z.object({ ruleId: z.string().min(1) }),
+    response: z.object({ ok: z.boolean(), message: z.string() })
+  },
+  'automation:copyTaskSchedulerCommand': {
+    request: z.object({ ruleId: z.string().min(1) }),
+    response: z.object({ command: z.string() })
+  },
+
+  // --- Email delivery (plan §11) ---
+  'automation:getEmailSettings': {
+    request: emptyRequestSchema,
+    response: emailSettingsSchema
+  },
+  'automation:saveEmailSettings': {
+    request: emailSettingsInputSchema,
+    response: emailSettingsSchema
+  },
+  'automation:testEmailConnection': {
+    request: emptyRequestSchema,
+    response: z.object({ ok: z.boolean(), message: z.string() })
+  },
+  'automation:listSendQueue': {
+    request: emptyRequestSchema,
+    response: z.object({ rows: z.array(emailSendQueueRowSchema) })
+  },
+  'automation:retrySend': {
+    request: z.object({ queueId: z.number().int().positive() }),
+    response: z.object({ ok: z.boolean(), error: z.string().nullable() })
+  },
+  'automation:sendReportPackNow': {
+    request: sendReportPackInputSchema,
+    response: sendReportPackResultSchema
+  },
+
+  // --- Automation screen run history (plan §11) ---
+  'automation:listExportAuditLog': {
+    request: emptyRequestSchema,
+    response: z.object({ rows: z.array(exportAuditLogRowSchema) })
   }
 } as const
 

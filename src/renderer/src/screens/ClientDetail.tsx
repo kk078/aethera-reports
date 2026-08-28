@@ -6,7 +6,8 @@ import {
   getBranding,
   getClientFinancialTrend,
   getClientReport,
-  listClients
+  listClients,
+  sendReportPackNow
 } from '../lib/api'
 import ReportDocument, { type FinancialTrendPoint } from '../report-doc/ReportDocument'
 
@@ -33,6 +34,7 @@ function ClientDetail(): React.JSX.Element {
   const [exporting, setExporting] = useState(false)
   const [exportMessage, setExportMessage] = useState<string | null>(null)
   const [formats, setFormats] = useState<Set<ExportFormat>>(new Set(['pdf']))
+  const [sending, setSending] = useState(false)
 
   useEffect(() => {
     listClients().then((all) => {
@@ -89,6 +91,23 @@ function ClientDetail(): React.JSX.Element {
     }
   }
 
+  /** Manual "Send pack" action (plan §11): generates fresh files, then emails/queues them to `report_recipients` immediately. */
+  async function handleSendPack(): Promise<void> {
+    if (!clientId || formats.size === 0) return
+    setSending(true)
+    setExportMessage(null)
+    try {
+      const result = await sendReportPackNow(clientId, period, Array.from(formats))
+      if (result.ok) setExportMessage(`Sent to ${result.clientCode}'s report_recipients.`)
+      else if (result.queued) setExportMessage(`Queued for delivery: ${result.error}`)
+      else setExportMessage(`Send failed: ${result.error}`)
+    } catch (err) {
+      setExportMessage(String(err))
+    } finally {
+      setSending(false)
+    }
+  }
+
   return (
     <section className="screen-placeholder">
       <h1>Client Detail</h1>
@@ -129,6 +148,13 @@ function ClientDetail(): React.JSX.Element {
           onClick={() => void handleExport()}
         >
           {exporting ? 'Exporting…' : 'Export'}
+        </button>
+        <button
+          type="button"
+          disabled={!clientId || sending || formats.size === 0}
+          onClick={() => void handleSendPack()}
+        >
+          {sending ? 'Sending…' : 'Send pack'}
         </button>
       </div>
       {exportMessage && <p>{exportMessage}</p>}

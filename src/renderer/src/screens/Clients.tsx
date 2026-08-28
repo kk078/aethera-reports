@@ -33,6 +33,8 @@ function Clients(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState<NewClientFormState>(emptyForm)
   const [submitting, setSubmitting] = useState(false)
+  const [editingRecipientsId, setEditingRecipientsId] = useState<number | null>(null)
+  const [recipientsDraft, setRecipientsDraft] = useState('')
 
   async function refresh(): Promise<void> {
     setLoading(true)
@@ -78,6 +80,21 @@ function Clients(): React.JSX.Element {
       } else {
         await updateClient(client.clientId, { active: true })
       }
+      await refresh()
+    } catch (err) {
+      setError(String(err))
+    }
+  }
+
+  function startEditingRecipients(client: Client): void {
+    setEditingRecipientsId(client.clientId)
+    setRecipientsDraft(client.reportRecipients.join(', '))
+  }
+
+  async function handleSaveRecipients(clientId: number): Promise<void> {
+    try {
+      await updateClient(clientId, { reportRecipients: parseRecipients(recipientsDraft) })
+      setEditingRecipientsId(null)
       await refresh()
     } catch (err) {
       setError(String(err))
@@ -185,7 +202,33 @@ function Clients(): React.JSX.Element {
                 </td>
                 <td>{client.slaDaysToSubmit ?? '—'}</td>
                 <td>{client.state ?? '—'}</td>
-                <td>{client.reportRecipients.join(', ') || '—'}</td>
+                <td>
+                  {editingRecipientsId === client.clientId ? (
+                    <>
+                      <input
+                        value={recipientsDraft}
+                        onChange={(e) => setRecipientsDraft(e.target.value)}
+                        placeholder="billing@acme.example, ops@acme.example"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveRecipients(client.clientId)}
+                      >
+                        Save
+                      </button>
+                      <button type="button" onClick={() => setEditingRecipientsId(null)}>
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {client.reportRecipients.join(', ') || '—'}{' '}
+                      <button type="button" onClick={() => startEditingRecipients(client)}>
+                        Edit
+                      </button>
+                    </>
+                  )}
+                </td>
                 <td>{client.active ? 'Active' : 'Inactive'}</td>
                 <td>
                   <button type="button" onClick={() => void handleToggleActive(client)}>

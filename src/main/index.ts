@@ -13,8 +13,16 @@ import { loadRenderer } from './window-target'
 import { runCli } from './cli'
 import { parseCliArgs } from './cli-args'
 import { createCliLogger } from './cli-logger'
+import { createInboxWatcher, scanInboxOnce, type WatchFolderDeps } from './automation/watch-folder'
+import { runSchedulerTick } from './automation/run-scheduler'
+import type { FSWatcher } from 'chokidar'
 
 let dataService: IDataService | null = null
+let inboxWatcher: FSWatcher | null = null
+let schedulerIntervalHandle: ReturnType<typeof setInterval> | null = null
+
+/** Scheduler rules are day-of-month granularity, so a tick doesn't need to be more frequent than this while the app stays open (plan §11). */
+const SCHEDULER_TICK_INTERVAL_MS = 30 * 60 * 1000
 
 /**
  * Real startup DB paths, all under Electron's per-OS `userData` dir
@@ -93,6 +101,49 @@ async function runSmokeCheck(): Promise<void> {
   console.log('[smoke] all checks passed')
 }
 
+/**
+ * Interactive-mode automation (plan §11): a launch-time watch-folder
+ * catch-up scan + live chokidar watcher (only when an inbox root is
+ * configured), and a scheduler tick run immediately (missed-run
+ * catch-up while the app was closed) then repeated on an interval.
+ * Every failure here is logged and swallowed — automation never blocks
+ * or crashes the app; it's purely best-effort background work.
+ */
+async function startAutomation(service: IDataService, userDataDir: string): Promise<void> {
+  const logger = createCliLogger(userDataDir)
+
+  try {
+    const settings = await service.getAutomationInboxSettings()
+    if (settings.inboxRoot) {
+      const deps: WatchFolderDeps = {
+        dataService: service,
+        getPinnedTemplateId: (clientCode) => service.getPinnedTemplateId(clientCode),
+        log: logger
+      }
+      const scanResult = await scanInboxOnce(settings.inboxRoot, deps)
+      if (scanResult.processed > 0 || scanResult.failed > 0) {
+        logger(
+          `[watch-folder] launch catch-up scan: ${scanResult.processed} processed, ${scanResult.failed} failed.`
+        )
+      }
+      inboxWatcher = createInboxWatcher(settings.inboxRoot, deps)
+      logger(`[watch-folder] watching ${settings.inboxRoot}`)
+    }
+  } catch (error) {
+    logger(
+      `[watch-folder] failed to start: ${error instanceof Error ? error.message : String(error)}`
+    )
+  }
+
+  const tick = (): void => {
+    void runSchedulerTick(service, new Date(), logger).catch((error: unknown) => {
+      logger(`[scheduler] tick failed: ${error instanceof Error ? error.message : String(error)}`)
+    })
+  }
+  tick() // missed-run catch-up for whatever became due while the app was closed
+  schedulerIntervalHandle = setInterval(tick, SCHEDULER_TICK_INTERVAL_MS)
+}
+
 const isSmoke = process.argv.includes('--smoke')
 const cliArgs = parseCliArgs(process.argv)
 const isCli = cliArgs.mode !== 'none'
@@ -148,6 +199,8 @@ app.whenReady().then(async () => {
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+
+  void startAutomation(dataService, app.getPath('userData'))
 })
 
 app.on('window-all-closed', () => {
@@ -163,4 +216,12 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   dataService?.close()
   dataService = null
+  if (inboxWatcher) {
+    void inboxWatcher.close()
+    inboxWatcher = null
+  }
+  if (schedulerIntervalHandle) {
+    clearInterval(schedulerIntervalHandle)
+    schedulerIntervalHandle = null
+  }
 })

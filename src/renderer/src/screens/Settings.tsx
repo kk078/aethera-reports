@@ -2,24 +2,36 @@ import { useEffect, useState } from 'react'
 import type {
   Branding,
   BackupStatus,
+  Client,
   ConnectorSyncStatusRow,
+  EmailSettings,
+  MappingTemplate,
   ReferenceApiCacheRefreshResult
 } from '../../../shared/domain'
 import {
+  getAutomationInboxSettings,
   getBackupStatus,
   getBranding,
   getConnectorSettings,
   getConnectorSyncStatus,
+  getEmailSettings,
   getReferenceApiSettings,
+  listClients,
+  listMappingTemplates,
   pickAndSetBrandingLogo,
   ping,
   refreshReferenceApiCache,
   restoreLatestBackup,
   runBackupNow,
   saveConnectorSettings,
+  saveEmailSettings,
   saveReferenceApiSettings,
+  scanInboxNow,
+  setAutomationInboxRoot,
+  setFolderTemplatePin,
   syncConnectorNow,
   testConnectorConnection,
+  testEmailConnection,
   testReferenceApiConnection,
   updateBranding
 } from '../lib/api'
@@ -517,6 +529,269 @@ function BackupsSection(): React.JSX.Element {
 }
 
 /**
+ * Watch-folder auto-import settings (plan §11): inbox root + per-client
+ * folder mapping-template pins (X12 files never need one — routed by
+ * detect()), and a manual "Scan now" button (the same catch-up-scan
+ * `--import <dir>` and app launch use).
+ */
+function WatchFolderSection(): React.JSX.Element {
+  const [inboxRoot, setInboxRoot] = useState('')
+  const [pins, setPins] = useState<Array<{ clientCode: string; templateId: string }>>([])
+  const [clients, setClients] = useState<Client[]>([])
+  const [templates, setTemplates] = useState<MappingTemplate[]>([])
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  function refresh(): void {
+    getAutomationInboxSettings().then((s) => {
+      setInboxRoot(s.inboxRoot ?? '')
+      setPins(s.folderTemplatePins)
+    })
+    listClients().then(setClients)
+    listMappingTemplates().then(setTemplates)
+  }
+
+  useEffect(refresh, [])
+
+  async function handleSaveRoot(event: React.FormEvent): Promise<void> {
+    event.preventDefault()
+    setBusy(true)
+    setMessage(null)
+    try {
+      const settings = await setAutomationInboxRoot(inboxRoot.trim() || null)
+      setInboxRoot(settings.inboxRoot ?? '')
+      setPins(settings.folderTemplatePins)
+      setMessage('Saved.')
+    } catch (error) {
+      setMessage(String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handlePinChange(clientCode: string, templateId: string): Promise<void> {
+    const settings = await setFolderTemplatePin(clientCode, templateId || null)
+    setPins(settings.folderTemplatePins)
+  }
+
+  async function handleScanNow(): Promise<void> {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const result = await scanInboxNow()
+      setMessage(`Scanned: ${result.processed} processed, ${result.failed} failed.`)
+    } catch (error) {
+      setMessage(String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const pinByCode = new Map(pins.map((p) => [p.clientCode, p.templateId]))
+
+  return (
+    <>
+      <h2>Watch folder</h2>
+      <p>
+        A configurable inbox root with one subfolder per client code (
+        <code>&lt;inbox&gt;/&lt;CLIENT_CODE&gt;/</code>) — X12 835/837 files are routed
+        automatically; CSV/XLSX files use the mapping template pinned to that client&apos;s folder
+        below. Processed files move to <code>processed/</code>, failures to <code>failed/</code>{' '}
+        with a <code>.error.txt</code> reason.
+      </p>
+      <form className="client-form" onSubmit={(e) => void handleSaveRoot(e)}>
+        {message && <p>{message}</p>}
+        <label>
+          Inbox root folder
+          <input
+            value={inboxRoot}
+            onChange={(e) => setInboxRoot(e.target.value)}
+            placeholder="C:\Inbox or /home/user/inbox"
+          />
+        </label>
+        <button type="submit" disabled={busy}>
+          Save
+        </button>
+        <button type="button" disabled={busy || !inboxRoot} onClick={() => void handleScanNow()}>
+          Scan now
+        </button>
+      </form>
+
+      {clients.length > 0 && (
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Client folder</th>
+              <th>Pinned mapping template</th>
+            </tr>
+          </thead>
+          <tbody>
+            {clients.map((c) => (
+              <tr key={c.clientId}>
+                <td>{c.code}</td>
+                <td>
+                  <select
+                    value={pinByCode.get(c.code) ?? ''}
+                    onChange={(e) => void handlePinChange(c.code, e.target.value)}
+                  >
+                    <option value="">— none (X12 only) —</option>
+                    {templates.map((t) => (
+                      <option key={t.templateId} value={t.templateId}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  )
+}
+
+/** SMTP email delivery settings (plan §11) — password encrypted the same way as the RCM connector's. */
+function EmailSection(): React.JSX.Element {
+  const [settings, setSettings] = useState<EmailSettings | null>(null)
+  const [host, setHost] = useState('')
+  const [port, setPort] = useState('587')
+  const [secure, setSecure] = useState(false)
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [fromAddress, setFromAddress] = useState('')
+  const [subjectTemplate, setSubjectTemplate] = useState('')
+  const [bodyTemplate, setBodyTemplate] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  function applyToForm(s: EmailSettings): void {
+    setSettings(s)
+    setHost(s.host ?? '')
+    setPort(s.port ? String(s.port) : '587')
+    setSecure(s.secure)
+    setUsername(s.username ?? '')
+    setFromAddress(s.fromAddress ?? '')
+    setSubjectTemplate(s.subjectTemplate)
+    setBodyTemplate(s.bodyTemplate)
+  }
+
+  useEffect(() => {
+    getEmailSettings().then(applyToForm)
+  }, [])
+
+  async function handleSave(event: React.FormEvent): Promise<void> {
+    event.preventDefault()
+    setBusy(true)
+    setMessage(null)
+    try {
+      const saved = await saveEmailSettings({
+        host: host.trim(),
+        port: Number(port),
+        secure,
+        username: username.trim() || undefined,
+        password: password.trim() ? password.trim() : undefined,
+        fromAddress: fromAddress.trim(),
+        subjectTemplate,
+        bodyTemplate
+      })
+      applyToForm(saved)
+      setPassword('')
+      setMessage('Saved.')
+    } catch (error) {
+      setMessage(String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleTest(): Promise<void> {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const result = await testEmailConnection()
+      setMessage(result.ok ? `✓ ${result.message}` : `✗ ${result.message}`)
+    } catch (error) {
+      setMessage(String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <h2>Email delivery</h2>
+      <p>
+        SMTP settings for scheduled/manual report-pack delivery (plan §11) —{' '}
+        <code>{'{client}'}</code> and <code>{'{period}'}</code> placeholders are available in the
+        subject/body templates.
+      </p>
+      <form className="client-form" onSubmit={(e) => void handleSave(e)}>
+        {message && <p>{message}</p>}
+        <label>
+          SMTP host
+          <input
+            value={host}
+            onChange={(e) => setHost(e.target.value)}
+            placeholder="smtp.example.com"
+          />
+        </label>
+        <label>
+          Port
+          <input type="number" value={port} onChange={(e) => setPort(e.target.value)} />
+        </label>
+        <label>
+          Use TLS (secure)
+          <input type="checkbox" checked={secure} onChange={(e) => setSecure(e.target.checked)} />
+        </label>
+        <label>
+          Username
+          <input value={username} onChange={(e) => setUsername(e.target.value)} />
+        </label>
+        <label>
+          Password {settings?.hasPassword && !password && '(saved — leave blank to keep it)'}
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={settings?.hasPassword ? '••••••••' : ''}
+          />
+        </label>
+        <label>
+          From address
+          <input
+            type="email"
+            value={fromAddress}
+            onChange={(e) => setFromAddress(e.target.value)}
+            placeholder="reports@yourfirm.example"
+          />
+        </label>
+        <label>
+          Subject template
+          <input value={subjectTemplate} onChange={(e) => setSubjectTemplate(e.target.value)} />
+        </label>
+        <label>
+          Body template
+          <textarea value={bodyTemplate} onChange={(e) => setBodyTemplate(e.target.value)} />
+        </label>
+        {settings?.hasPassword && settings.passwordEncoding === 'plaintext' && (
+          <p className="form-error">
+            Warning: OS-level credential encryption is unavailable on this machine — the password is
+            stored in plaintext in meta.db.
+          </p>
+        )}
+        <button type="submit" disabled={busy}>
+          Save
+        </button>
+        <button type="button" disabled={busy || !settings?.host} onClick={() => void handleTest()}>
+          Test connection
+        </button>
+      </form>
+    </>
+  )
+}
+
+/**
  * Settings: branding (plan §6), backup status + restore (Risk 5,
  * deferred from step 4), and the IPC round-trip diagnostic from step 3.
  * Connector credentials / beacon URL land in Phase 2.
@@ -542,6 +817,8 @@ function Settings(): React.JSX.Element {
       <BrandingSection />
       <ConnectorSection />
       <ReferenceApiSection />
+      <WatchFolderSection />
+      <EmailSection />
       <BackupsSection />
 
       <h2>Diagnostics</h2>

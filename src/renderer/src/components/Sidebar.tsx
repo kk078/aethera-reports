@@ -9,6 +9,7 @@ const navItems = [
   { to: '/payers', label: 'Payers' },
   { to: '/imports', label: 'Imports' },
   { to: '/manual-entry', label: 'Manual Entry' },
+  { to: '/automation', label: 'Automation' },
   { to: '/settings', label: 'Settings' }
 ]
 

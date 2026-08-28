@@ -642,3 +642,156 @@ export const referenceApiCacheRefreshResultSchema = z.object({
   cpt: z.object({ cached: z.number().int(), notFound: z.number().int() })
 })
 export type ReferenceApiCacheRefreshResult = z.infer<typeof referenceApiCacheRefreshResultSchema>
+
+// ---------------------------------------------------------------------
+// Automation suite (plan §11, Phase 2 chunk D): watch-folder auto-import,
+// report scheduler, email delivery, and the Automation screen.
+// ---------------------------------------------------------------------
+
+/** One `<inbox>/<CLIENT_CODE>/` folder's pinned CSV/XLSX mapping template — X12 files never need one (routed by detect()). */
+export const folderTemplatePinSchema = z.object({
+  clientCode: z.string(),
+  templateId: z.string()
+})
+export type FolderTemplatePin = z.infer<typeof folderTemplatePinSchema>
+
+export const automationInboxSettingsSchema = z.object({
+  inboxRoot: z.string().nullable(),
+  folderTemplatePins: z.array(folderTemplatePinSchema)
+})
+export type AutomationInboxSettings = z.infer<typeof automationInboxSettingsSchema>
+
+export const scanResultSchema = z.object({
+  processed: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  results: z.array(
+    z.object({
+      filePath: z.string(),
+      clientCode: z.string(),
+      ok: z.boolean(),
+      action: z.enum(['moved-processed', 'moved-failed']),
+      reason: z.string().optional()
+    })
+  )
+})
+export type ScanResult = z.infer<typeof scanResultSchema>
+
+/** A report-scheduler rule (plan §11's `{rule_id, name, day_of_month, period: prior_month, clients, formats, output_dir, deliver, enabled}`). */
+export const automationRuleSchema = z.object({
+  ruleId: z.string().min(1),
+  name: z.string().min(1),
+  /** 1-31; a value past a given month's day count simply never fires that month (documented — use <= 28 to guarantee monthly firing). */
+  dayOfMonth: z.number().int().min(1).max(31),
+  clients: z.union([z.literal('all'), z.array(z.string())]),
+  formats: z.array(exportFormatSchema).min(1),
+  outputDir: z.string().nullable(),
+  deliver: z.enum(['none', 'email']),
+  enabled: z.boolean(),
+  /** "YYYY-MM" of the period this rule last successfully ran for — the once-per-period guard (plan §11). */
+  lastRunPeriod: z.string().nullable(),
+  lastRunAt: z.string().nullable(),
+  lastRunStatus: z.string().nullable()
+})
+export type AutomationRule = z.infer<typeof automationRuleSchema>
+
+export const automationRuleInputSchema = z.object({
+  ruleId: z.string().min(1).optional(),
+  name: z.string().min(1).max(200),
+  dayOfMonth: z.number().int().min(1).max(31),
+  clients: z.union([z.literal('all'), z.array(z.string())]),
+  formats: z.array(exportFormatSchema).min(1),
+  outputDir: z.string().nullable().optional(),
+  deliver: z.enum(['none', 'email']),
+  enabled: z.boolean()
+})
+export type AutomationRuleInput = z.infer<typeof automationRuleInputSchema>
+
+export const runRuleResultSchema = z.object({
+  ruleId: z.string(),
+  periodMonth: z.string(),
+  clientResults: z.array(exportResultSchema),
+  emailResults: z.array(
+    z.object({ clientCode: z.string(), ok: z.boolean(), error: z.string().nullable() })
+  )
+})
+export type RunRuleResult = z.infer<typeof runRuleResultSchema>
+
+/** "What would happen" preview for a rule (Automation screen's dry-run button) — never actually exports or sends. */
+export const dryRunResultSchema = z.object({
+  ruleId: z.string(),
+  periodMonth: z.string(),
+  clientCodes: z.array(z.string()),
+  formats: z.array(exportFormatSchema),
+  wouldDeliverEmail: z.boolean(),
+  recipientsByClient: z.record(z.string(), z.array(z.string()))
+})
+export type DryRunResult = z.infer<typeof dryRunResultSchema>
+
+export const emailSettingsSchema = z.object({
+  host: z.string().nullable(),
+  port: z.number().int().nullable(),
+  secure: z.boolean(),
+  username: z.string().nullable(),
+  hasPassword: z.boolean(),
+  passwordEncoding: z.enum(['safeStorage', 'plaintext']).nullable(),
+  fromAddress: z.string().nullable(),
+  subjectTemplate: z.string(),
+  bodyTemplate: z.string()
+})
+export type EmailSettings = z.infer<typeof emailSettingsSchema>
+
+export const emailSettingsInputSchema = z.object({
+  host: z.string().min(1),
+  port: z.number().int().positive(),
+  secure: z.boolean(),
+  username: z.string().nullable().optional(),
+  /** Omit to keep the currently stored password unchanged. */
+  password: z.string().min(1).optional(),
+  fromAddress: z.string().email(),
+  subjectTemplate: z.string().min(1),
+  bodyTemplate: z.string().min(1)
+})
+export type EmailSettingsInput = z.infer<typeof emailSettingsInputSchema>
+
+export const emailSendQueueRowSchema = z.object({
+  queueId: z.number().int().positive(),
+  clientCode: z.string(),
+  periodMonth: z.string(),
+  filePaths: z.array(z.string()),
+  recipients: z.array(z.string()),
+  subject: z.string(),
+  body: z.string(),
+  status: z.enum(['pending', 'sent', 'failed']),
+  attempts: z.number().int().nonnegative(),
+  lastError: z.string().nullable(),
+  createdAt: z.string(),
+  lastAttemptAt: z.string().nullable()
+})
+export type EmailSendQueueRow = z.infer<typeof emailSendQueueRowSchema>
+
+export const sendReportPackInputSchema = z.object({
+  clientId: z.number().int().positive(),
+  periodMonth: z.string().regex(/^\d{4}-\d{2}$/),
+  formats: z.array(exportFormatSchema).min(1)
+})
+export type SendReportPackInput = z.infer<typeof sendReportPackInputSchema>
+
+export const sendReportPackResultSchema = z.object({
+  clientCode: z.string(),
+  ok: z.boolean(),
+  error: z.string().nullable(),
+  queued: z.boolean()
+})
+export type SendReportPackResult = z.infer<typeof sendReportPackResultSchema>
+
+/** One row from the export audit log (plan §6) — read back for the Automation screen's run history (plan §11). */
+export const exportAuditLogRowSchema = z.object({
+  auditId: z.number().int().positive(),
+  action: z.string(),
+  clientCode: z.string().nullable(),
+  periodMonth: z.string().nullable(),
+  filePath: z.string().nullable(),
+  performedAt: z.string(),
+  performedBy: z.string().nullable()
+})
+export type ExportAuditLogRow = z.infer<typeof exportAuditLogRowSchema>

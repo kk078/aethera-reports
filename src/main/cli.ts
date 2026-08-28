@@ -6,18 +6,25 @@
  * exporter code paths the UI uses — no separate "headless" logic.
  *
  *   --generate --period YYYY-MM --clients all|CODE1,CODE2 --formats pdf --out <dir>
- *   --import <file-or-dir> --template <name>
+ *   --import <file-or-dir> [--template <name>]
  *   --smoke   (handled separately in index.ts — the walking-skeleton flag)
  *
- * `--import <dir>` follows the same `<inbox>/<CLIENT_CODE>/` convention
- * the Phase 2 watch-folder feature will use (plan §11): each immediate
- * subdirectory of `<dir>` is one client's folder. `--import <file>`
- * (a single file, not a directory) infers the client code from that
- * file's parent directory name.
+ * `--import <dir>` reuses the exact same watch-folder catch-up-scan
+ * (`scanInboxOnce`, plan §11) the app itself runs at launch and the
+ * Automation screen's "Scan now" button triggers — X12 vs CSV/XLSX is
+ * auto-detected per file, each `<dir>/<CLIENT_CODE>/` folder's pinned
+ * mapping template (Settings → Watch folder) is used when present, and
+ * `--template` (now optional) is only the fallback default for folders
+ * with no pin. Files move to `processed/`/`failed/` exactly as the live
+ * watcher does. `--import <file>` (a single file, not a directory) keeps
+ * its original Phase 1 behavior unchanged: CSV/XLSX only, `--template`
+ * is required, and the client code is inferred from the file's parent
+ * directory name — no move, no X12 auto-detect.
  */
-import { readdirSync, statSync } from 'node:fs'
-import { basename, dirname, join } from 'node:path'
+import { statSync } from 'node:fs'
+import { basename, dirname } from 'node:path'
 import { exportClientReportBatch } from './exporters/batch'
+import { scanInboxOnce } from './automation/watch-folder'
 import { exportFormatSchema } from '../shared/domain'
 import type { ExportFormat } from '../shared/domain'
 import type { IDataService } from './services/data-service'
@@ -87,29 +94,77 @@ async function runGenerate(
   return 0
 }
 
-interface ImportJob {
-  filePath: string
-  clientCode: string
+/** Resolves `--template` (a name or id, matching the Phase 1 lookup) to a concrete template id, or `null` if unknown. */
+async function resolveTemplateId(
+  dataService: IDataService,
+  templateNameOrId: string
+): Promise<string | null> {
+  const templates = await dataService.listMappingTemplates()
+  const template = templates.find(
+    (t) => t.templateId === templateNameOrId || t.name === templateNameOrId
+  )
+  return template ? template.templateId : null
 }
 
-function discoverImportJobs(importPath: string): ImportJob[] {
-  const stat = statSync(importPath)
-  if (stat.isFile()) {
-    return [{ filePath: importPath, clientCode: basename(dirname(importPath)) }]
+async function runImportFile(
+  dataService: IDataService,
+  filePath: string,
+  templateArg: string | undefined,
+  log: CliLogger
+): Promise<number> {
+  if (!templateArg) {
+    log('--import <file> requires --template <name-or-id>.')
+    return 1
+  }
+  const templateId = await resolveTemplateId(dataService, templateArg)
+  if (!templateId) {
+    log(`Unknown mapping template: "${templateArg}"`)
+    return 1
   }
 
-  const jobs: ImportJob[] = []
-  for (const entry of readdirSync(importPath, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue
-    const clientCode = entry.name
-    const subdir = join(importPath, entry.name)
-    for (const file of readdirSync(subdir)) {
-      if (/\.(csv|xlsx|xls)$/i.test(file)) {
-        jobs.push({ filePath: join(subdir, file), clientCode })
-      }
+  const clientCode = basename(dirname(filePath))
+  try {
+    const result = await dataService.runCsvImport({ filePath, templateId, clientCode })
+    log(
+      `${filePath} -> ${clientCode}: ${result.status} (${result.rowsLoaded} loaded, ${result.rowsSkipped} quarantined)`
+    )
+    return result.status === 'failed' ? 1 : 0
+  } catch (error) {
+    log(
+      `${filePath} -> ${clientCode}: ERROR ${error instanceof Error ? error.message : String(error)}`
+    )
+    return 1
+  }
+}
+
+async function runImportDirectory(
+  dataService: IDataService,
+  importPath: string,
+  templateArg: string | undefined,
+  log: CliLogger
+): Promise<number> {
+  let defaultTemplateId: string | null = null
+  if (templateArg) {
+    defaultTemplateId = await resolveTemplateId(dataService, templateArg)
+    if (!defaultTemplateId) {
+      log(`Unknown mapping template: "${templateArg}"`)
+      return 1
     }
   }
-  return jobs
+
+  const result = await scanInboxOnce(importPath, {
+    dataService,
+    getPinnedTemplateId: (clientCode) => dataService.getPinnedTemplateId(clientCode),
+    defaultTemplateId,
+    log
+  })
+
+  if (result.processed === 0 && result.failed === 0) {
+    log(`No importable files found under ${importPath}`)
+    return 1
+  }
+  log(`Processed ${result.processed} file(s), ${result.failed} failure(s).`)
+  return result.failed > 0 ? 1 : 0
 }
 
 async function runImport(
@@ -117,40 +172,11 @@ async function runImport(
   args: ImportArgs,
   log: CliLogger
 ): Promise<number> {
-  const templates = await dataService.listMappingTemplates()
-  const template = templates.find((t) => t.templateId === args.template || t.name === args.template)
-  if (!template) {
-    log(`Unknown mapping template: "${args.template}"`)
-    return 1
+  const stat = statSync(args.importPath)
+  if (stat.isFile()) {
+    return runImportFile(dataService, args.importPath, args.template, log)
   }
-
-  const jobs = discoverImportJobs(args.importPath)
-  if (jobs.length === 0) {
-    log(`No importable files found under ${args.importPath}`)
-    return 1
-  }
-
-  let failures = 0
-  for (const job of jobs) {
-    try {
-      const result = await dataService.runCsvImport({
-        filePath: job.filePath,
-        templateId: template.templateId,
-        clientCode: job.clientCode
-      })
-      log(
-        `${job.filePath} -> ${job.clientCode}: ${result.status} (${result.rowsLoaded} loaded, ${result.rowsSkipped} quarantined)`
-      )
-      if (result.status === 'failed') failures += 1
-    } catch (error) {
-      log(
-        `${job.filePath} -> ${job.clientCode}: ERROR ${error instanceof Error ? error.message : String(error)}`
-      )
-      failures += 1
-    }
-  }
-
-  return failures > 0 ? 1 : 0
+  return runImportDirectory(dataService, args.importPath, args.template, log)
 }
 
 export async function runCli(

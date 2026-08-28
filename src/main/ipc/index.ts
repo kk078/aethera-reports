@@ -10,6 +10,7 @@ import { registerExportsHandlers } from './exports'
 import { registerAnalyticsHandlers } from './analytics'
 import { registerRcmConnectorHandlers } from './rcm-connector'
 import { registerReferenceApiHandlers } from './reference-api'
+import { registerAutomationHandlers } from './automation'
 import { registerPrintReadyHandler } from '../exporters/print-ready'
 import type { IDataService } from '../services/data-service'
 
@@ -26,5 +27,6 @@ export function registerIpcHandlers(dataService: IDataService): void {
   registerAnalyticsHandlers(dataService)
   registerRcmConnectorHandlers(dataService)
   registerReferenceApiHandlers(dataService)
+  registerAutomationHandlers(dataService)
   registerPrintReadyHandler()
 }

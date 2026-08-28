@@ -8,6 +8,7 @@ import AR from './screens/AR'
 import Payers from './screens/Payers'
 import Imports from './screens/Imports'
 import ManualEntry from './screens/ManualEntry'
+import Automation from './screens/Automation'
 import Settings from './screens/Settings'
 import PrintClientReport from './screens/print/PrintClientReport'
 
@@ -42,6 +43,7 @@ function App(): React.JSX.Element {
           <Route path="/payers" element={<Payers />} />
           <Route path="/imports" element={<Imports />} />
           <Route path="/manual-entry" element={<ManualEntry />} />
+          <Route path="/automation" element={<Automation />} />
           <Route path="/settings" element={<Settings />} />
         </Route>
       </Routes>

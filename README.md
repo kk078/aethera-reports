@@ -101,45 +101,102 @@ without a rewrite).
 
 ## Automation
 
-Aethera Reports is meant to run mostly unattended once configured. The
-headless CLI mode ships in Phase 1; a watch-folder auto-import and a
-report scheduler UI are Phase 2 roadmap items.
+Aethera Reports is meant to run mostly unattended once configured, two
+ways: a headless CLI mode for Task Scheduler, or leaving the app open,
+in which case its own watch-folder importer and report scheduler do the
+work in the background. Manage all of it from the **Automation** screen
+(rule CRUD, run history, dry-run, "copy Task Scheduler command") and the
+**Settings** screen's "Watch folder" and "Email" sections.
+
+### Watch-folder auto-import
+
+Point Settings → Watch folder at an inbox directory laid out as
+`<inbox>\<CLIENT_CODE>\` (one subfolder per client). While the app is
+open it:
+
+- runs a catch-up scan of the whole inbox on launch (so files dropped
+  while the app was closed aren't missed), then
+- watches it live for new files for as long as the app stays open.
+
+Every file is auto-detected — X12 835/837 need no template; CSV/XLSX use
+that client folder's pinned mapping template (set per client in
+Settings → Watch folder), falling back to a default template only for
+the CLI's `--import <dir>` (see below). A successfully imported file
+moves to `<CLIENT_CODE>\processed\`; a failed one moves to
+`<CLIENT_CODE>\failed\` alongside a `<file>.error.txt` explaining why.
+Every attempt is recorded in Import History (Imports screen) regardless
+of outcome. Click "Scan now" in Settings to run the catch-up scan
+on demand instead of waiting for the next file drop.
+
+### Report scheduler
+
+Create a rule on the Automation screen: a day of the month, which
+clients (`all` or a specific list), which export formats, and whether to
+just write the files or also email them. A rule generates the **prior**
+month's report — a rule set to fire on the 3rd generates last month's
+pack. Rules stay "due" every day from their scheduled day through
+month-end until they've actually run (missed-run catch-up for a laptop
+that was closed on the scheduled day), and never run twice for the same
+period once they have. While the app is open, a due rule fires on
+launch and then on a periodic background check; "Run now" on the
+Automation screen runs it immediately regardless of due-ness, and "Dry
+run" previews which clients/recipients/period it would use without
+exporting or sending anything.
+
+### Email delivery
+
+Configure SMTP once in Settings → Email (host/port/credentials — the
+password is encrypted via the OS credential store when available, with
+a clear warning when it falls back to plaintext) and a subject/body
+template using `{client}`/`{period}` placeholders. Each client's
+`report_recipients` (editable on the Clients screen) is who a rule with
+delivery set to "email" sends to, and ClientDetail's "Send pack" button
+sends/queues one client's pack on demand. If SMTP isn't configured yet,
+or a send fails, it lands in a retryable send queue instead of being
+dropped — the Automation screen's run-history tab lists it with a
+"Retry" action, and it's retried automatically on the next scheduler
+tick once SMTP is configured. One client's email failure never aborts a
+multi-client run.
 
 ### Headless CLI
 
-The installed app accepts flags and runs with no window at all, so a
-script or Windows Task Scheduler can drive it:
+The installed app also accepts flags and runs with no window at all, so
+a script or Windows Task Scheduler can drive it without leaving the app
+open:
 
 ```
 "Aethera Reports.exe" --generate --period 2026-07 --clients all --formats pdf
-"Aethera Reports.exe" --generate --period 2026-07 --clients ACME,BETA --formats pdf --out "D:\Reports"
-"Aethera Reports.exe" --import "D:\Inbox" --template tebra-claim-export
+"Aethera Reports.exe" --generate --period 2026-07 --clients ACME,BETA --formats pdf,pptx,xlsx --out "D:\Reports"
+"Aethera Reports.exe" --import "D:\Inbox"
+"Aethera Reports.exe" --import "D:\Inbox\ACME\claims.csv" --template tebra-claim-export
 "Aethera Reports.exe" --smoke
 ```
 
-- `--generate` writes one PDF per client to
-  `<Documents>\Aethera Reports\<YYYY-MM>\<CLIENT_CODE>\` (Phase 1 supports
-  `--formats pdf`; PPTX/XLSX land in Phase 2). Every run is logged to
-  `%APPDATA%\aethera-reports\logs\automation-<date>.log`, and the process
-  exits non-zero if any client's export failed.
-- `--import <file-or-dir> --template <name-or-id>` batch-imports CSV/XLSX
-  files using a saved mapping template, following the same
-  `<inbox>\<CLIENT_CODE>\` folder convention the future watch-folder
-  feature will use: point it at a folder of per-client subfolders, or at
-  a single file (its parent folder's name is used as the client code).
+- `--generate` writes the requested format(s) per client to
+  `<Documents>\Aethera Reports\<YYYY-MM>\<CLIENT_CODE>\`. Every run is
+  logged to `%APPDATA%\aethera-reports\logs\automation-<date>.log`, and
+  the process exits non-zero if any client's export failed.
+- `--import <dir>` reuses the exact same watch-folder catch-up scan the
+  app runs at launch: X12 vs CSV/XLSX is auto-detected per file, each
+  `<dir>\<CLIENT_CODE>\` folder's pinned template applies when set, and
+  `--template` (optional here) is only the fallback default for folders
+  with no pin. Files move to `processed\`/`failed\` exactly as the live
+  watcher does.
+- `--import <file> --template <name-or-id>` imports one CSV/XLSX file
+  using a saved mapping template (its parent folder's name is used as
+  the client code) — `--template` is required for a single file, and the
+  file is left in place, unchanged from Phase 1 behavior.
 
-**Windows Task Scheduler**, to run the monthly report pack unattended on
-the 3rd of every month at 6am (adjust the period and path to your
-install):
+**Windows Task Scheduler**: the Automation screen's "Copy Task Scheduler
+command" button generates the `schtasks` command for a given rule
+(current month, correct clients/formats/day) ready to paste — for
+example:
 
 ```
 schtasks /create /tn "Aethera Reports - Monthly Generate" ^
   /tr "\"C:\Program Files\Aethera Reports\Aethera Reports.exe\" --generate --period 2026-07 --clients all --formats pdf" ^
   /sc monthly /d 3 /st 06:00
 ```
-
-(A "copy Task Scheduler command" button that fills in the current month
-automatically is planned for the Settings screen in Phase 2.)
 
 ## Contributing
 

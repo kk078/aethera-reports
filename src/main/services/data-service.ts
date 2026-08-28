@@ -11,6 +11,9 @@
  */
 import type {
   ArAgingByClientRow,
+  AutomationInboxSettings,
+  AutomationRule,
+  AutomationRuleInput,
   BackupStatus,
   Branding,
   BrandingInput,
@@ -23,6 +26,9 @@ import type {
   ConnectorTestResult,
   DaysInArTrendPoint,
   DenialListRow,
+  EmailSendQueueRow,
+  EmailSettings,
+  ExportAuditLogRow,
   ImportFileKind,
   ImportJob,
   MappingTemplate,
@@ -139,6 +145,45 @@ export interface IDataService {
   testReferenceApiConnection(): Promise<ConnectorTestResult>
   refreshReferenceApiCache(): Promise<ReferenceApiCacheRefreshResult>
   getCarcDescriptions(codes: string[]): Promise<Record<string, string>>
+
+  // --- Watch-folder automation (plan §11, Phase 2 chunk D) ---
+  getAutomationInboxSettings(): Promise<AutomationInboxSettings>
+  setAutomationInboxRoot(inboxRoot: string | null): Promise<void>
+  /** `templateId: null` removes the pin. */
+  setFolderTemplatePin(clientCode: string, templateId: string | null): Promise<void>
+  getPinnedTemplateId(clientCode: string): Promise<string | null>
+
+  // --- Report scheduler (plan §11) ---
+  listAutomationRules(): Promise<AutomationRule[]>
+  saveAutomationRule(input: AutomationRuleInput): Promise<AutomationRule>
+  deleteAutomationRule(ruleId: string): Promise<void>
+  recordRuleRun(ruleId: string, periodMonth: string, status: 'ok' | 'error'): Promise<void>
+
+  // --- Email delivery (plan §11) ---
+  getEmailSettings(): Promise<EmailSettings>
+  /** `encryptedPassword` already-encrypted by the caller, same pattern as the RCM connector's password. Omit to keep the currently stored one. */
+  saveEmailSettings(input: {
+    host: string
+    port: number
+    secure: boolean
+    username: string | null
+    fromAddress: string
+    subjectTemplate: string
+    bodyTemplate: string
+    encryptedPassword?: EncryptedSecretInput
+  }): Promise<EmailSettings>
+  getEncryptedEmailPassword(): Promise<EncryptedSecretInput | null>
+  enqueueEmailSend(entry: {
+    clientCode: string
+    periodMonth: string
+    filePaths: string[]
+    recipients: string[]
+    subject: string
+    body: string
+  }): Promise<number>
+  listEmailSendQueue(): Promise<EmailSendQueueRow[]>
+  markEmailSendResult(queueId: number, ok: boolean, error: string | null): Promise<void>
+  listExportAuditLog(limit?: number): Promise<ExportAuditLogRow[]>
 
   // --- KPI engine / reports (plan §4) ---
   buildClientReport(clientId: number, periodMonth: string): Promise<ClientReport>

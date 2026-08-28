@@ -62,8 +62,9 @@ describe('parseCliArgs', () => {
     })
   })
 
-  it('throws when --import is missing --template', () => {
-    expect(() => parseCliArgs(['electron', '--import', '/data/inbox'])).toThrow(/--template/)
+  it('leaves --template undefined when omitted — --import <dir> can rely purely on folder pins (plan §11)', () => {
+    const result = parseCliArgs(['electron', '--import', '/data/inbox'])
+    expect(result).toEqual({ mode: 'import', importPath: '/data/inbox', template: undefined })
   })
 
   it("finds flags regardless of position in argv (matches --smoke's tolerant style)", () => {

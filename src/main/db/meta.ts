@@ -111,6 +111,76 @@ export function initMetaSchema(db: Database.Database): void {
       last_health_at TEXT,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    -- Watch-folder auto-import (plan §11, Phase 2 chunk D). The inbox
+    -- root itself is a plain key in settings (key='automation_inbox_root')
+    -- — this table is only the per-client-folder mapping template pin
+    -- ("CSV/XLSX files need a template pinned per folder"); X12 files
+    -- never need one (routed by the importer registry's detect()).
+    CREATE TABLE IF NOT EXISTS automation_folder_templates (
+      client_code TEXT PRIMARY KEY,
+      template_id TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Report scheduler rules (plan §11). clients_json is either the
+    -- literal string "all" or a JSON array of client codes; formats_json
+    -- is a JSON array of ExportFormat. last_run_period/last_run_at
+    -- implement "run at most once per period" + missed-run catch-up:
+    -- a rule is due when enabled, today's day-of-month >= day_of_month,
+    -- and last_run_period != the period it would run for (see
+    -- src/main/automation/scheduler.ts's pure due-logic).
+    CREATE TABLE IF NOT EXISTS automation_rules (
+      rule_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      day_of_month INTEGER NOT NULL,
+      clients_json TEXT NOT NULL DEFAULT '"all"',
+      formats_json TEXT NOT NULL DEFAULT '["pdf"]',
+      output_dir TEXT,
+      deliver TEXT NOT NULL DEFAULT 'none',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      last_run_period TEXT,
+      last_run_at TEXT,
+      last_run_status TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- SMTP settings (plan §11 email delivery) — singleton, password
+    -- encrypted the same way as the RCM connector's (src/main/credentials.ts).
+    CREATE TABLE IF NOT EXISTS email_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      host TEXT,
+      port INTEGER,
+      secure INTEGER NOT NULL DEFAULT 1,
+      username TEXT,
+      password_data TEXT,
+      password_encoding TEXT,
+      from_address TEXT,
+      subject_template TEXT NOT NULL DEFAULT 'Your {client} report — {period}',
+      body_template TEXT NOT NULL DEFAULT 'Attached is the {client} revenue cycle report for {period}.',
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Failed/queued report-pack sends (plan §11: "failed sends queue in
+    -- meta.db with retry"). file_paths_json/recipients_json are JSON
+    -- string arrays. A send starts here as 'pending', flips to 'sent' or
+    -- 'failed' — failed rows are retried manually (Automation screen) or
+    -- automatically on the next scheduler tick.
+    CREATE TABLE IF NOT EXISTS email_send_queue (
+      queue_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_code TEXT NOT NULL,
+      period_month TEXT NOT NULL,
+      file_paths_json TEXT NOT NULL,
+      recipients_json TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      last_attempt_at TEXT
+    );
   `)
 }
 

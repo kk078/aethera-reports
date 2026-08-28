@@ -5,6 +5,9 @@
  */
 import type {
   ArAgingByClientRow,
+  AutomationInboxSettings,
+  AutomationRule,
+  AutomationRuleInput,
   Branding,
   BrandingInput,
   Client,
@@ -17,6 +20,11 @@ import type {
   ConnectorTestResult,
   DaysInArTrendPoint,
   DenialListRow,
+  DryRunResult,
+  EmailSendQueueRow,
+  EmailSettings,
+  EmailSettingsInput,
+  ExportAuditLogRow,
   ExportFormat,
   ExportResult,
   ImportFileKind,
@@ -36,6 +44,8 @@ import type {
   ReferenceApiSettingsInput,
   RunCsvImportInput,
   RunX12ImportInput,
+  ScanResult,
+  SendReportPackResult,
   TopAgedClaimRow,
   X12ParseSummary,
   BackupStatus
@@ -374,4 +384,90 @@ export function signalPrintReady(
   chartImages: Record<string, string> = {}
 ): Promise<{ ok: boolean }> {
   return window.aethera.invoke('reports:printReady', { chartImages })
+}
+
+// --- Watch-folder auto-import (plan §11) ---
+
+export function getAutomationInboxSettings(): Promise<AutomationInboxSettings> {
+  return window.aethera.invoke('automation:getInboxSettings', {})
+}
+
+export function setAutomationInboxRoot(inboxRoot: string | null): Promise<AutomationInboxSettings> {
+  return window.aethera.invoke('automation:setInboxRoot', { inboxRoot })
+}
+
+export function setFolderTemplatePin(
+  clientCode: string,
+  templateId: string | null
+): Promise<AutomationInboxSettings> {
+  return window.aethera.invoke('automation:setFolderTemplatePin', { clientCode, templateId })
+}
+
+export function scanInboxNow(): Promise<ScanResult> {
+  return window.aethera.invoke('automation:scanInboxNow', {})
+}
+
+// --- Report scheduler (plan §11) ---
+
+export async function listAutomationRules(): Promise<AutomationRule[]> {
+  const { rules } = await window.aethera.invoke('automation:listRules', {})
+  return rules
+}
+
+export function saveAutomationRule(input: AutomationRuleInput): Promise<AutomationRule> {
+  return window.aethera.invoke('automation:saveRule', input)
+}
+
+export async function deleteAutomationRule(ruleId: string): Promise<void> {
+  await window.aethera.invoke('automation:deleteRule', { ruleId })
+}
+
+export function dryRunAutomationRule(ruleId: string): Promise<DryRunResult> {
+  return window.aethera.invoke('automation:dryRunRule', { ruleId })
+}
+
+export function runAutomationRuleNow(ruleId: string): Promise<{ ok: boolean; message: string }> {
+  return window.aethera.invoke('automation:runRuleNow', { ruleId })
+}
+
+export function copyTaskSchedulerCommand(ruleId: string): Promise<{ command: string }> {
+  return window.aethera.invoke('automation:copyTaskSchedulerCommand', { ruleId })
+}
+
+// --- Email delivery (plan §11) ---
+
+export function getEmailSettings(): Promise<EmailSettings> {
+  return window.aethera.invoke('automation:getEmailSettings', {})
+}
+
+export function saveEmailSettings(input: EmailSettingsInput): Promise<EmailSettings> {
+  return window.aethera.invoke('automation:saveEmailSettings', input)
+}
+
+export function testEmailConnection(): Promise<{ ok: boolean; message: string }> {
+  return window.aethera.invoke('automation:testEmailConnection', {})
+}
+
+export async function listEmailSendQueue(): Promise<EmailSendQueueRow[]> {
+  const { rows } = await window.aethera.invoke('automation:listSendQueue', {})
+  return rows
+}
+
+export function retryEmailSend(queueId: number): Promise<{ ok: boolean; error: string | null }> {
+  return window.aethera.invoke('automation:retrySend', { queueId })
+}
+
+export function sendReportPackNow(
+  clientId: number,
+  periodMonth: string,
+  formats: ExportFormat[]
+): Promise<SendReportPackResult> {
+  return window.aethera.invoke('automation:sendReportPackNow', { clientId, periodMonth, formats })
+}
+
+// --- Automation screen run history ---
+
+export async function listExportAuditLog(): Promise<ExportAuditLogRow[]> {
+  const { rows } = await window.aethera.invoke('automation:listExportAuditLog', {})
+  return rows
 }

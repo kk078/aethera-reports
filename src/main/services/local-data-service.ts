@@ -48,6 +48,8 @@ import {
 import { monthPeriod, periodMonthColumn } from '../../shared/periods'
 import type { IDataService, EncryptedSecretInput } from './data-service'
 import {
+  automationRuleInputSchema,
+  automationRuleSchema,
   backupStatusSchema,
   brandingInputSchema,
   brandingSchema,
@@ -57,6 +59,9 @@ import {
   connectorSyncResultSchema,
   connectorSyncStatusRowSchema,
   connectorTestResultSchema,
+  emailSendQueueRowSchema,
+  emailSettingsSchema,
+  exportAuditLogRowSchema,
   importJobSchema,
   mappingTemplateSchema,
   monthlySummaryInputSchema,
@@ -70,6 +75,9 @@ import {
   runX12ImportInputSchema,
   x12ParseSummarySchema,
   type ArAgingByClientRow,
+  type AutomationInboxSettings,
+  type AutomationRule,
+  type AutomationRuleInput,
   type BackupStatus,
   type Branding,
   type BrandingInput,
@@ -82,6 +90,9 @@ import {
   type ConnectorTestResult,
   type DaysInArTrendPoint,
   type DenialListRow,
+  type EmailSendQueueRow,
+  type EmailSettings,
+  type ExportAuditLogRow,
   type ImportFileKind,
   type ImportJob,
   type MappingTemplate,
@@ -1147,6 +1158,284 @@ export class LocalDataService implements IDataService {
   async getCarcDescriptions(codes: string[]): Promise<Record<string, string>> {
     const map = await getCachedCarcDescriptions(this.duckdb.connection, codes)
     return Object.fromEntries(map)
+  }
+
+  // -------------------------------------------------------------------
+  // Watch-folder automation (plan §11, Phase 2 chunk D)
+  // -------------------------------------------------------------------
+
+  async getAutomationInboxSettings(): Promise<AutomationInboxSettings> {
+    const row = this.meta
+      .prepare("SELECT value FROM settings WHERE key = 'automation_inbox_root'")
+      .get() as { value: string } | undefined
+    const pinRows = this.meta
+      .prepare(
+        'SELECT client_code, template_id FROM automation_folder_templates ORDER BY client_code'
+      )
+      .all() as Array<{ client_code: string; template_id: string }>
+    return {
+      inboxRoot: row?.value ?? null,
+      folderTemplatePins: pinRows.map((r) => ({
+        clientCode: r.client_code,
+        templateId: r.template_id
+      }))
+    }
+  }
+
+  async setAutomationInboxRoot(inboxRoot: string | null): Promise<void> {
+    if (inboxRoot === null) {
+      this.meta.prepare("DELETE FROM settings WHERE key = 'automation_inbox_root'").run()
+      return
+    }
+    this.meta
+      .prepare(
+        `INSERT INTO settings (key, value, updated_at) VALUES ('automation_inbox_root', ?, datetime('now'))
+         ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+      )
+      .run(inboxRoot)
+  }
+
+  async setFolderTemplatePin(clientCode: string, templateId: string | null): Promise<void> {
+    if (templateId === null) {
+      this.meta
+        .prepare('DELETE FROM automation_folder_templates WHERE client_code = ?')
+        .run(clientCode)
+      return
+    }
+    this.meta
+      .prepare(
+        `INSERT INTO automation_folder_templates (client_code, template_id, updated_at)
+         VALUES (?, ?, datetime('now'))
+         ON CONFLICT (client_code) DO UPDATE SET template_id = excluded.template_id, updated_at = excluded.updated_at`
+      )
+      .run(clientCode, templateId)
+  }
+
+  async getPinnedTemplateId(clientCode: string): Promise<string | null> {
+    const row = this.meta
+      .prepare('SELECT template_id FROM automation_folder_templates WHERE client_code = ?')
+      .get(clientCode) as { template_id: string } | undefined
+    return row?.template_id ?? null
+  }
+
+  // -------------------------------------------------------------------
+  // Report scheduler (plan §11)
+  // -------------------------------------------------------------------
+
+  private mapAutomationRuleRow(row: DbRow): AutomationRule {
+    return automationRuleSchema.parse({
+      ruleId: row.rule_id,
+      name: row.name,
+      dayOfMonth: toNumber(row.day_of_month),
+      clients: JSON.parse(String(row.clients_json)),
+      formats: JSON.parse(String(row.formats_json)),
+      outputDir: row.output_dir ?? null,
+      deliver: row.deliver,
+      enabled: Boolean(row.enabled),
+      lastRunPeriod: row.last_run_period ?? null,
+      lastRunAt: row.last_run_at ?? null,
+      lastRunStatus: row.last_run_status ?? null
+    })
+  }
+
+  async listAutomationRules(): Promise<AutomationRule[]> {
+    const rows = this.meta.prepare('SELECT * FROM automation_rules ORDER BY name').all() as DbRow[]
+    return rows.map((row) => this.mapAutomationRuleRow(row))
+  }
+
+  async saveAutomationRule(input: AutomationRuleInput): Promise<AutomationRule> {
+    const validated = automationRuleInputSchema.parse(input)
+    const ruleId = validated.ruleId ?? randomUUID()
+    this.meta
+      .prepare(
+        `INSERT INTO automation_rules (rule_id, name, day_of_month, clients_json, formats_json, output_dir, deliver, enabled, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+         ON CONFLICT (rule_id) DO UPDATE SET
+           name = excluded.name, day_of_month = excluded.day_of_month, clients_json = excluded.clients_json,
+           formats_json = excluded.formats_json, output_dir = excluded.output_dir, deliver = excluded.deliver,
+           enabled = excluded.enabled, updated_at = excluded.updated_at`
+      )
+      .run(
+        ruleId,
+        validated.name,
+        validated.dayOfMonth,
+        JSON.stringify(validated.clients),
+        JSON.stringify(validated.formats),
+        validated.outputDir ?? null,
+        validated.deliver,
+        validated.enabled ? 1 : 0
+      )
+    const row = this.meta
+      .prepare('SELECT * FROM automation_rules WHERE rule_id = ?')
+      .get(ruleId) as DbRow
+    return this.mapAutomationRuleRow(row)
+  }
+
+  async deleteAutomationRule(ruleId: string): Promise<void> {
+    this.meta.prepare('DELETE FROM automation_rules WHERE rule_id = ?').run(ruleId)
+  }
+
+  async recordRuleRun(ruleId: string, periodMonth: string, status: 'ok' | 'error'): Promise<void> {
+    this.meta
+      .prepare(
+        `UPDATE automation_rules SET last_run_period = ?, last_run_at = datetime('now'), last_run_status = ?, updated_at = datetime('now')
+         WHERE rule_id = ?`
+      )
+      .run(periodMonth, status, ruleId)
+  }
+
+  // -------------------------------------------------------------------
+  // Email delivery (plan §11)
+  // -------------------------------------------------------------------
+
+  private mapEmailSettingsRow(row: DbRow | undefined): EmailSettings {
+    return emailSettingsSchema.parse({
+      host: (row?.host as string | null) ?? null,
+      port: row?.port == null ? null : toNumber(row.port),
+      secure: row ? Boolean(row.secure) : true,
+      username: (row?.username as string | null) ?? null,
+      hasPassword: Boolean(row?.password_data),
+      passwordEncoding: (row?.password_encoding as 'safeStorage' | 'plaintext' | null) ?? null,
+      fromAddress: (row?.from_address as string | null) ?? null,
+      subjectTemplate:
+        (row?.subject_template as string | undefined) ?? 'Your {client} report — {period}',
+      bodyTemplate:
+        (row?.body_template as string | undefined) ??
+        'Attached is the {client} revenue cycle report for {period}.'
+    })
+  }
+
+  async getEmailSettings(): Promise<EmailSettings> {
+    const row = this.meta.prepare('SELECT * FROM email_settings WHERE id = 1').get() as
+      DbRow | undefined
+    return this.mapEmailSettingsRow(row)
+  }
+
+  async saveEmailSettings(input: {
+    host: string
+    port: number
+    secure: boolean
+    username: string | null
+    fromAddress: string
+    subjectTemplate: string
+    bodyTemplate: string
+    encryptedPassword?: EncryptedSecretInput
+  }): Promise<EmailSettings> {
+    const existing = this.meta.prepare('SELECT * FROM email_settings WHERE id = 1').get() as
+      DbRow | undefined
+    const passwordData =
+      input.encryptedPassword?.data ?? (existing?.password_data as string | undefined) ?? null
+    const passwordEncoding =
+      input.encryptedPassword?.encoding ??
+      (existing?.password_encoding as string | undefined) ??
+      null
+
+    this.meta
+      .prepare(
+        `INSERT INTO email_settings (id, host, port, secure, username, password_data, password_encoding, from_address, subject_template, body_template, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+         ON CONFLICT (id) DO UPDATE SET
+           host = excluded.host, port = excluded.port, secure = excluded.secure, username = excluded.username,
+           password_data = excluded.password_data, password_encoding = excluded.password_encoding,
+           from_address = excluded.from_address, subject_template = excluded.subject_template,
+           body_template = excluded.body_template, updated_at = excluded.updated_at`
+      )
+      .run(
+        input.host,
+        input.port,
+        input.secure ? 1 : 0,
+        input.username,
+        passwordData,
+        passwordEncoding,
+        input.fromAddress,
+        input.subjectTemplate,
+        input.bodyTemplate
+      )
+    return this.getEmailSettings()
+  }
+
+  async getEncryptedEmailPassword(): Promise<EncryptedSecretInput | null> {
+    const row = this.meta.prepare('SELECT * FROM email_settings WHERE id = 1').get() as
+      DbRow | undefined
+    if (!row?.password_data) return null
+    return {
+      data: String(row.password_data),
+      encoding: row.password_encoding === 'safeStorage' ? 'safeStorage' : 'plaintext'
+    }
+  }
+
+  private mapEmailQueueRow(row: DbRow): EmailSendQueueRow {
+    return emailSendQueueRowSchema.parse({
+      queueId: toNumber(row.queue_id),
+      clientCode: row.client_code,
+      periodMonth: row.period_month,
+      filePaths: JSON.parse(String(row.file_paths_json)),
+      recipients: JSON.parse(String(row.recipients_json)),
+      subject: row.subject,
+      body: row.body,
+      status: row.status,
+      attempts: toNumber(row.attempts),
+      lastError: row.last_error ?? null,
+      createdAt: row.created_at,
+      lastAttemptAt: row.last_attempt_at ?? null
+    })
+  }
+
+  async enqueueEmailSend(entry: {
+    clientCode: string
+    periodMonth: string
+    filePaths: string[]
+    recipients: string[]
+    subject: string
+    body: string
+  }): Promise<number> {
+    const result = this.meta
+      .prepare(
+        `INSERT INTO email_send_queue (client_code, period_month, file_paths_json, recipients_json, subject, body, status)
+         VALUES (?, ?, ?, ?, ?, ?, 'pending')`
+      )
+      .run(
+        entry.clientCode,
+        entry.periodMonth,
+        JSON.stringify(entry.filePaths),
+        JSON.stringify(entry.recipients),
+        entry.subject,
+        entry.body
+      )
+    return Number(result.lastInsertRowid)
+  }
+
+  async listEmailSendQueue(): Promise<EmailSendQueueRow[]> {
+    const rows = this.meta
+      .prepare('SELECT * FROM email_send_queue ORDER BY created_at DESC')
+      .all() as DbRow[]
+    return rows.map((row) => this.mapEmailQueueRow(row))
+  }
+
+  async markEmailSendResult(queueId: number, ok: boolean, error: string | null): Promise<void> {
+    this.meta
+      .prepare(
+        `UPDATE email_send_queue SET status = ?, attempts = attempts + 1, last_error = ?, last_attempt_at = datetime('now')
+         WHERE queue_id = ?`
+      )
+      .run(ok ? 'sent' : 'failed', error, queueId)
+  }
+
+  async listExportAuditLog(limit = 200): Promise<ExportAuditLogRow[]> {
+    const rows = this.meta
+      .prepare('SELECT * FROM export_audit_log ORDER BY performed_at DESC LIMIT ?')
+      .all(limit) as DbRow[]
+    return rows.map((row) =>
+      exportAuditLogRowSchema.parse({
+        auditId: toNumber(row.audit_id),
+        action: row.action,
+        clientCode: row.client_code ?? null,
+        periodMonth: row.period_month ?? null,
+        filePath: row.file_path ?? null,
+        performedAt: row.performed_at,
+        performedBy: row.performed_by ?? null
+      })
+    )
   }
 
   // -------------------------------------------------------------------

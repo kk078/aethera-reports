@@ -18,7 +18,15 @@ export interface GenerateArgs {
 export interface ImportArgs {
   mode: 'import'
   importPath: string
-  template: string
+  /**
+   * Optional as of the watch-folder auto-import feature (plan §11): a
+   * single-file `--import <file>` still requires it (enforced in
+   * `cli.ts::runImport`, not here — this module stays a pure argv parser
+   * with no filesystem access), but `--import <dir>` can rely purely on
+   * per-client-folder template pins, using this only as the fallback
+   * default when a folder has no pin.
+   */
+  template?: string
 }
 
 export interface NoCliArgs {
@@ -65,7 +73,6 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     const importPath = getFlagValue(argv, '--import')
     const template = getFlagValue(argv, '--template')
     if (!importPath) throw new Error('--import requires a file or directory path')
-    if (!template) throw new Error('--import requires --template <name-or-id>')
     return { mode: 'import', importPath, template }
   }
 
