@@ -1,0 +1,161 @@
+{
+  "_comment": "Exact claim facts read back from a live rcm-prototype instance (127.0.0.1:8000) for the dedicated crosscheck client XCHK1, captured 2026-08-28 via GET /api/claims/{id}. Seeded there via its own public API (POST /api/clients, /api/patients, /api/providers, /api/notes/ingest, then the human-work-queue endpoints /api/work-items/{id}/complete/{eligibility,submission,posting}) per scripts/crosscheck-rcm.ts's header comment. Used by that script to mirror the same underlying facts into a local DuckDB so buildClientReport() can be diffed against rcm-prototype's own /api/reports/client/XCHK1 on identical inputs. dos (date of service) isn't exposed by rcm-prototype's public ClaimOut/claims-list API, so it's recorded here from the original /api/notes/ingest payloads this session sent.",
+  "clientCode": "XCHK1",
+  "clientName": "Aethera Reports Crosscheck Test Client",
+  "contractType": "PERCENT_OF_COLLECTIONS",
+  "contractRate": 0.05,
+  "slaDaysToSubmit": 3,
+  "periodMonth": "2026-08",
+  "claims": [
+    {
+      "claimNumber": "XCHK1-260828-00001",
+      "externalRef": "XCHK1-CLAIM-001",
+      "dos": "2026-08-01",
+      "createdAt": "2026-08-28T00:40:53.024182",
+      "firstSubmittedAt": null,
+      "submissionCount": 0,
+      "status": "SCRUB_FAILED",
+      "totalCharge": 2000,
+      "totalAllowed": 0,
+      "totalPaid": 0,
+      "patientResponsibility": 0,
+      "patientPaid": 0,
+      "adjustments": 0,
+      "balance": 2000
+    },
+    {
+      "claimNumber": "XCHK1-260828-00002",
+      "externalRef": "XCHK1-CLAIM-002",
+      "dos": "2026-08-02",
+      "createdAt": "2026-08-28T00:41:08.015608",
+      "firstSubmittedAt": null,
+      "submissionCount": 0,
+      "status": "SCRUB_FAILED",
+      "totalCharge": 2500,
+      "totalAllowed": 0,
+      "totalPaid": 0,
+      "patientResponsibility": 0,
+      "patientPaid": 0,
+      "adjustments": 0,
+      "balance": 2500
+    },
+    {
+      "claimNumber": "XCHK1-260828-00003",
+      "externalRef": "XCHK1-CLAIM-003",
+      "dos": "2026-08-03",
+      "createdAt": "2026-08-28T00:41:21.734974",
+      "firstSubmittedAt": "2026-08-28T00:46:31.230848",
+      "submissionCount": 1,
+      "status": "PATIENT_BILLING",
+      "totalCharge": 150,
+      "totalAllowed": 120,
+      "totalPaid": 100,
+      "patientResponsibility": 20,
+      "patientPaid": 0,
+      "adjustments": 30,
+      "balance": 0
+    },
+    {
+      "claimNumber": "XCHK1-260828-00004",
+      "externalRef": "XCHK1-CLAIM-004",
+      "dos": "2026-08-04",
+      "createdAt": "2026-08-28T00:41:32.987676",
+      "firstSubmittedAt": null,
+      "submissionCount": 0,
+      "status": "SCRUB_FAILED",
+      "totalCharge": 300,
+      "totalAllowed": 148,
+      "totalPaid": 0,
+      "patientResponsibility": 0,
+      "patientPaid": 0,
+      "adjustments": 0,
+      "balance": 300
+    },
+    {
+      "claimNumber": "XCHK1-260828-00005",
+      "externalRef": "XCHK1-CLAIM-005",
+      "dos": "2026-08-05",
+      "createdAt": "2026-08-28T00:41:46.814623",
+      "firstSubmittedAt": null,
+      "submissionCount": 0,
+      "status": "SCRUB_FAILED",
+      "totalCharge": 0,
+      "totalAllowed": 0,
+      "totalPaid": 0,
+      "patientResponsibility": 0,
+      "patientPaid": 0,
+      "adjustments": 0,
+      "balance": 0
+    },
+    {
+      "claimNumber": "XCHK1-260828-00006",
+      "externalRef": "XCHK1-CLAIM-006",
+      "dos": "2026-08-06",
+      "createdAt": "2026-08-28T00:45:30.573066",
+      "firstSubmittedAt": "2026-08-28T00:46:31.230848",
+      "submissionCount": 1,
+      "status": "PATIENT_BILLING",
+      "totalCharge": 100,
+      "totalAllowed": 85,
+      "totalPaid": 80,
+      "patientResponsibility": 5,
+      "patientPaid": 0,
+      "adjustments": 15,
+      "balance": 0
+    },
+    {
+      "claimNumber": "XCHK1-260828-00007",
+      "externalRef": "XCHK1-CLAIM-007",
+      "dos": "2026-08-07",
+      "createdAt": "2026-08-28T00:45:40.660959",
+      "firstSubmittedAt": "2026-08-28T00:46:31.230848",
+      "submissionCount": 1,
+      "status": "DENIAL_REVIEW",
+      "totalCharge": 300,
+      "totalAllowed": 148,
+      "totalPaid": 0,
+      "patientResponsibility": 0,
+      "patientPaid": 0,
+      "adjustments": 152,
+      "balance": 148,
+      "denial": {
+        "carcCode": "CO-50",
+        "rootCauseStage": "CODING",
+        "createdAt": "2026-08-28T00:47:08.316506"
+      }
+    },
+    {
+      "claimNumber": "XCHK1-260828-00008",
+      "externalRef": "XCHK1-CLAIM-008",
+      "dos": "2026-08-08",
+      "createdAt": "2026-08-28T00:45:52.305457",
+      "firstSubmittedAt": "2026-08-28T00:46:31.230848",
+      "submissionCount": 1,
+      "status": "AR_FOLLOWUP",
+      "totalCharge": 200,
+      "totalAllowed": 92,
+      "totalPaid": 60,
+      "patientResponsibility": 32,
+      "patientPaid": 0,
+      "adjustments": 108,
+      "balance": 0
+    }
+  ],
+  "remittances": [
+    {
+      "claimNumber": "XCHK1-260828-00003",
+      "totalPaid": 100,
+      "receivedAt": "2026-08-28T00:47:08.256557"
+    },
+    {
+      "claimNumber": "XCHK1-260828-00006",
+      "totalPaid": 80,
+      "receivedAt": "2026-08-28T00:47:08.287803"
+    },
+    {
+      "claimNumber": "XCHK1-260828-00008",
+      "totalPaid": 60,
+      "receivedAt": "2026-08-28T00:47:08.347752"
+    }
+  ]
+}

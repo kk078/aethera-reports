@@ -23,47 +23,47 @@ substitution is called out below and in a code comment at its call site.
 Two fields (`specialty`, `ai_coding`) have no analog at all and are
 **omitted from our output**, not stubbed with fake data.
 
-| rcm-prototype concept | Our substitute | Why |
-|---|---|---|
-| `Encounter` row | the `claims` row itself | we don't model encounters separately from claims |
-| `encounter.date_of_service` | `claims.dos` | date of service lives directly on the claim in our schema |
-| `ClaimStatus.CLOSED` enum check | `claims.closed_at IS NULL` | our `status` column is free text; `closed_at` is the authoritative "still open" signal |
-| Patient payments via `ProductionEvent` ledger | `payments_patient` table | we have a dedicated patient-payment table (plan §2); more direct than reconstructing it from a production-tracking ledger |
-| `kpi_snapshots` populated by a daily sweeper | same table, but **no sweeper exists yet** | the automation suite (plan §11) that would populate this on a schedule is out of Phase 1's scope; `kpi_trends` correctly returns the empty shape until it does |
+| rcm-prototype concept                         | Our substitute                            | Why                                                                                                                                                            |
+| --------------------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Encounter` row                               | the `claims` row itself                   | we don't model encounters separately from claims                                                                                                               |
+| `encounter.date_of_service`                   | `claims.dos`                              | date of service lives directly on the claim in our schema                                                                                                      |
+| `ClaimStatus.CLOSED` enum check               | `claims.closed_at IS NULL`                | our `status` column is free text; `closed_at` is the authoritative "still open" signal                                                                         |
+| Patient payments via `ProductionEvent` ledger | `payments_patient` table                  | we have a dedicated patient-payment table (plan §2); more direct than reconstructing it from a production-tracking ledger                                      |
+| `kpi_snapshots` populated by a daily sweeper  | same table, but **no sweeper exists yet** | the automation suite (plan §11) that would populate this on a schedule is out of Phase 1's scope; `kpi_trends` correctly returns the empty shape until it does |
 
 ## Field-by-field contract
 
 ### `volume`
 
-| Field | Formula | Source |
-|---|---|---|
-| `encountersReceived` | count of claims with `created_at` in the period | production.py L156, L162 (via `created`) |
-| `claimsSubmitted` | count of claims with `first_submitted_at` in the period | production.py L157 |
-| `denialsReceived` | count of denials with `created_at` in the period, joined to this client's claims | production.py L163 |
+| Field                | Formula                                                                          | Source                                   |
+| -------------------- | -------------------------------------------------------------------------------- | ---------------------------------------- |
+| `encountersReceived` | count of claims with `created_at` in the period                                  | production.py L156, L162 (via `created`) |
+| `claimsSubmitted`    | count of claims with `first_submitted_at` in the period                          | production.py L157                       |
+| `denialsReceived`    | count of denials with `created_at` in the period, joined to this client's claims | production.py L163                       |
 
 ### `financials`
 
-| Field | Formula | Source |
-|---|---|---|
-| `grossCharges` | `sum(total_charge)` over claims created in the period | production.py L162 |
-| `insuranceCollections` | `sum(remittances.total_paid)` where `received_at` in period | production.py L160 |
-| `patientCollections` | `sum(payments_patient.amount)` where `received_at` in period (substitute — see table above) | production.py L161 |
-| `totalCollections` | `insuranceCollections + patientCollections` | production.py L182 |
-| `rcmFee` | `totalCollections * contractRate` if `contractType === 'PERCENT_OF_COLLECTIONS'`, else `claimsSubmitted * contractRate` | production.py L183 |
+| Field                  | Formula                                                                                                                                                                              | Source                                                                                                                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `grossCharges`         | `sum(total_charge)` over claims created in the period                                                                                                                                | production.py L162                                                                                                                                                                                           |
+| `insuranceCollections` | `sum(remittances.total_paid)` where `received_at` in period                                                                                                                          | production.py L160                                                                                                                                                                                           |
+| `patientCollections`   | `sum(payments_patient.amount)` where `received_at` in period (substitute — see table above)                                                                                          | production.py L161                                                                                                                                                                                           |
+| `totalCollections`     | `insuranceCollections + patientCollections`                                                                                                                                          | production.py L182                                                                                                                                                                                           |
+| `rcmFee`               | `totalCollections * contractRate` if `contractType === 'PERCENT_OF_COLLECTIONS'`, else `claimsSubmitted * contractRate`                                                              | production.py L183                                                                                                                                                                                           |
 | `netCollectionRatePct` | `null` if no submitted claims; else `100 * totalCollections / sum(allowedOrCharge)` where `allowedOrCharge = totalAllowed \|\| totalCharge` (0 is falsy, exactly like Python's `or`) | production.py L197 — **deviation:** if the sum is 0 despite submitted claims existing, Python raises `ZeroDivisionError`; we return `null` instead of crashing (no meaningful value to diff against a crash) |
 
 ### `kpis`
 
-| Field | Formula | Source |
-|---|---|---|
-| `daysInAr` | `null` if `avgDailyCharge` is 0; else `openAr / avgDailyCharge`, 1 decimal. `avgDailyCharge = grossCharges / max(1, inclusive days in period)` | production.py L175, L198 |
-| `openAr` | `sum(balance + max(patientResponsibility - patientPaid, 0))` over open claims (`closed_at IS NULL`) | production.py L165 |
-| `arOver90Pct` | **verbatim quirk — NOT null-safe:** `0` (not `null`) when `openAr` is 0, unlike every other rate field. Else `100 * (aging['91-120'] + aging['120+']) / openAr` | production.py L199 |
-| `chargeLagDaysAvg` | `null` if no submitted claims have both `dos` and `first_submitted_at`; else average of `(first_submitted_at - dos)` in days | production.py L173, L175, L200 |
-| `slaDaysToSubmit` | pass-through from `clients.sla_days_to_submit` | production.py L200 |
-| `slaMetPct` | `null` if no lag samples or client has no SLA configured; else `100 * count(lag <= slaDaysToSubmit) / count(lag)` | production.py L201 — deviation: Python would crash comparing against a `None` SLA; we return `null` |
-| `firstPassAcceptancePct` | `null` if no submitted claims; else `100 * firstPassCount / submittedCount`. First-pass = `submissionCount === 1 AND` claim has never had any denial (not period-scoped) | production.py L174, L202 |
-| `denialRatePct` | `null` if no submitted claims; else `100 * denialsInPeriodCount / submittedCount` — **note:** numerator (denials *received* in period) and denominator (claims *submitted* in period) are not the same claim set; this mismatch exists in rcm-prototype too, not "fixed" here | production.py L203 |
+| Field                    | Formula                                                                                                                                                                                                                                                                       | Source                                                                                              |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `daysInAr`               | `null` if `avgDailyCharge` is 0; else `openAr / avgDailyCharge`, 1 decimal. `avgDailyCharge = grossCharges / max(1, inclusive days in period)`                                                                                                                                | production.py L175, L198                                                                            |
+| `openAr`                 | `sum(balance + max(patientResponsibility - patientPaid, 0))` over open claims (`closed_at IS NULL`)                                                                                                                                                                           | production.py L165                                                                                  |
+| `arOver90Pct`            | **verbatim quirk — NOT null-safe:** `0` (not `null`) when `openAr` is 0, unlike every other rate field. Else `100 * (aging['91-120'] + aging['120+']) / openAr`                                                                                                               | production.py L199                                                                                  |
+| `chargeLagDaysAvg`       | `null` if no submitted claims have both `dos` and `first_submitted_at`; else average of `(first_submitted_at - dos)` in days                                                                                                                                                  | production.py L173, L175, L200                                                                      |
+| `slaDaysToSubmit`        | pass-through from `clients.sla_days_to_submit`                                                                                                                                                                                                                                | production.py L200                                                                                  |
+| `slaMetPct`              | `null` if no lag samples or client has no SLA configured; else `100 * count(lag <= slaDaysToSubmit) / count(lag)`                                                                                                                                                             | production.py L201 — deviation: Python would crash comparing against a `None` SLA; we return `null` |
+| `firstPassAcceptancePct` | `null` if no submitted claims; else `100 * firstPassCount / submittedCount`. First-pass = `submissionCount === 1 AND` claim has never had any denial (not period-scoped)                                                                                                      | production.py L174, L202                                                                            |
+| `denialRatePct`          | `null` if no submitted claims; else `100 * denialsInPeriodCount / submittedCount` — **note:** numerator (denials _received_ in period) and denominator (claims _submitted_ in period) are not the same claim set; this mismatch exists in rcm-prototype too, not "fixed" here | production.py L203                                                                                  |
 
 ### `arAging`
 
@@ -131,11 +131,81 @@ null-safe path — see its row above.
   empty-client-month case that must produce nulls, not zeros, everywhere
   the table above says `null`. Run via `npm test` (`test/kpi-golden.test.ts`).
 - **Cross-check against live rcm-prototype** (`scripts/crosscheck-rcm.ts`):
-  loads the same golden fixtures into a running rcm-prototype instance via
-  its own API and diffs `/api/reports/client/{code}` against
-  `buildClientReport()` on every shared field. See that script's header
-  comment for how to run it — it was authored but not executed against
-  the live instance in this session (no credentials were available for
-  the running container, and seeding data into it without valid
-  credentials risks writing to a live system this project must not
-  modify).
+  logs into a running rcm-prototype instance, fetches
+  `GET /api/reports/client/{code}`, mirrors the same underlying claim
+  facts into a local DuckDB, and diffs against `buildClientReport()` on
+  every shared field. See that script's header comment for the exact
+  seeding procedure and how to re-run it.
+
+### Live cross-check results (executed 2026-08-28)
+
+Run against the live rcm-prototype instance at `127.0.0.1:8000`, with
+explicit user authorization, using a dedicated client **XCHK1** seeded
+via rcm-prototype's own public API only (client, patients, provider,
+notes ingested through its real AI-coding/charge-capture/scrubbing
+pipeline, then pushed through eligibility → submission → payment-posting
+work items with a PAID / PAID / DENIED / PARTIAL outcome mix). Nothing in
+rcm-prototype's code or database was touched directly — see
+`scripts/crosscheck-rcm.ts`'s header for the full command sequence and
+`sample-data/golden/xchk1-live-claims.json` for the exact claim facts
+read back and mirrored locally.
+
+Login: `POST /api/auth/token` with the seeded `manager` account succeeded
+on the first attempt — `mfa_required: false`, no TOTP step needed.
+
+Result: **25/25 shared fields matched exactly** — `RCM_PERIOD=2026-08`,
+8 encounters ingested (4 scrub-failed on synthetic-note artifacts,
+4 submitted: 2 paid, 1 denied, 1 partial):
+
+| Field                             | Ours                                                                  | rcm-prototype              | Match |
+| --------------------------------- | --------------------------------------------------------------------- | -------------------------- | ----- |
+| `client.contract`                 | "5% of collections"                                                   | "5% of collections"        | ✅    |
+| `volume.encountersReceived`       | 8                                                                     | 8                          | ✅    |
+| `volume.claimsSubmitted`          | 4                                                                     | 4                          | ✅    |
+| `volume.denialsReceived`          | 1                                                                     | 1                          | ✅    |
+| `financials.grossCharges`         | 5550                                                                  | 5550                       | ✅    |
+| `financials.insuranceCollections` | 240                                                                   | 240                        | ✅    |
+| `financials.patientCollections`   | 0                                                                     | 0                          | ✅    |
+| `financials.totalCollections`     | 240                                                                   | 240                        | ✅    |
+| `financials.rcmFee`               | 12                                                                    | 12                         | ✅    |
+| `financials.netCollectionRatePct` | 53.9                                                                  | 53.9                       | ✅    |
+| `kpis.daysInAr`                   | 28                                                                    | 28                         | ✅    |
+| `kpis.openAr`                     | 5005                                                                  | 5005                       | ✅    |
+| `kpis.arOver90Pct`                | 0                                                                     | 0                          | ✅    |
+| `kpis.chargeLagDaysAvg`           | 22                                                                    | 22                         | ✅    |
+| `kpis.slaDaysToSubmit`            | 3                                                                     | 3                          | ✅    |
+| `kpis.slaMetPct`                  | 0                                                                     | 0                          | ✅    |
+| `kpis.firstPassAcceptancePct`     | 75                                                                    | 75                         | ✅    |
+| `kpis.denialRatePct`              | 25                                                                    | 25                         | ✅    |
+| `arAging` (all 5 buckets)         | 5005/0/0/0/0                                                          | 5005/0/0/0/0               | ✅    |
+| `denialsByRootCause`              | `{"CODING":1}`                                                        | `{"CODING":1}`             | ✅    |
+| `claimsByStatus`                  | `{SCRUB_FAILED:4, PATIENT_BILLING:2, DENIAL_REVIEW:1, AR_FOLLOWUP:1}` | same (different key order) | ✅    |
+
+**No formula changes were needed on our side.** The one apparent mismatch
+on first run (`claimsByStatus`) was a bug in the _comparison script_
+(`JSON.stringify` order-sensitivity), not the KPI engine — fixed in
+`scripts/crosscheck-rcm.ts`'s `deepEqual` to compare object keys
+order-independently.
+
+This run also empirically confirmed two things this port had to infer
+without access to rcm-prototype's source for those specific mechanics:
+
+- **`balance` semantics**: rcm-prototype zeroes a claim's `balance` once
+  the insurance side is fully reconciled (`total_charge = total_allowed +
+adjustments`) and the claim has moved to patient billing or AR
+  follow-up, tracking any patient-owed amount separately in
+  `patient_responsibility`/`patient_paid`. `open_ar`'s
+  `balance + max(patient_responsibility - patient_paid, 0)` expression
+  (production.py L165) is exactly the right reconstruction of total
+  exposure from those two independently-tracked numbers — confirmed by
+  matching `open_ar` (5005) and every A/R aging bucket exactly.
+- **CARC → `root_cause_stage` mapping**: a `CO-50` ("not medically
+  necessary") denial categorized to `root_cause_stage: "CODING"` on the
+  rcm-prototype side, not a `MEDICAL_NECESSITY`-named bucket its work-item
+  history text might suggest. We don't independently derive this mapping
+  (there's no formula to port) — this cross-check just confirms our
+  `denials_by_root_cause` grouping reproduces whatever value lands in
+  that column, whatever it is.
+
+No divergences remain to accept or document — every shared field matched
+on the first correct comparison.
