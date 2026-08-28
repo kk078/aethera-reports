@@ -26,6 +26,7 @@ import {
   exportClientPdfInputSchema,
   exportResultSchema,
   getMonthlySummaryInputSchema,
+  importFileKindSchema,
   importJobSchema,
   mappingTemplateSchema,
   monthlySummaryInputSchema,
@@ -33,7 +34,9 @@ import {
   newClientInputSchema,
   newMappingTemplateInputSchema,
   quarantineRowSchema,
-  runCsvImportInputSchema
+  runCsvImportInputSchema,
+  runX12ImportInputSchema,
+  x12ParseSummarySchema
 } from './domain'
 
 /**
@@ -160,6 +163,20 @@ export const ipcContract = {
         })
       )
     })
+  },
+
+  // --- X12 835/837 (plan §3 bullet 2, Phase 2) ---
+  'importJobs:detectFileKind': {
+    request: z.object({ filePath: z.string().min(1) }),
+    response: z.object({ kind: importFileKindSchema })
+  },
+  'importJobs:previewX12': {
+    request: z.object({ filePath: z.string().min(1) }),
+    response: z.object({ summary: x12ParseSummarySchema })
+  },
+  'importJobs:runX12': {
+    request: runX12ImportInputSchema,
+    response: importJobSchema
   },
 
   // --- Manual entry (plan §3, Phase 1 step 6) ---

@@ -5,7 +5,8 @@
  * backup, integrity check.
  */
 import { existsSync, mkdirSync, readdirSync, statSync, copyFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { dirname, extname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
 import { openDuckDb, type DuckDbHandle } from '../db/duckdb'
@@ -20,6 +21,11 @@ import {
 } from '../db/backup'
 import { runCsvImport as runCsvImportPipeline } from '../importers/csv-xlsx/run-csv-import'
 import { tebraClaimExportTemplate } from '../importers/csv-xlsx/presets/tebra'
+import { detectCsvXlsxFile } from '../importers/csv-xlsx'
+import { detectX12File, detectX12Kind } from '../importers/x12'
+import { parse835 } from '../importers/x12/parse835'
+import { parse837 } from '../importers/x12/parse837'
+import { run835Import, run837Import } from '../importers/x12/run-x12-import'
 import { buildClientReport as buildClientReportFn } from '../kpi/client-report'
 import { buildFinancialTrend } from '../kpi/trend'
 import type { IDataService } from './data-service'
@@ -37,12 +43,15 @@ import {
   newMappingTemplateInputSchema,
   quarantineRowSchema,
   runCsvImportInputSchema,
+  runX12ImportInputSchema,
+  x12ParseSummarySchema,
   type BackupStatus,
   type Branding,
   type BrandingInput,
   type Client,
   type ClientPatch,
   type ClientReport,
+  type ImportFileKind,
   type ImportJob,
   type MappingTemplate,
   type MonthlySummary,
@@ -50,7 +59,9 @@ import {
   type NewClientInput,
   type NewMappingTemplateInput,
   type QuarantineRow,
-  type RunCsvImportInput
+  type RunCsvImportInput,
+  type RunX12ImportInput,
+  type X12ParseSummary
 } from '../../shared/domain'
 
 export interface LocalDataServicePaths {
@@ -451,6 +462,80 @@ export class LocalDataService implements IDataService {
         createdAt: toIsoDateTime(row.created_at)
       })
     )
+  }
+
+  // -------------------------------------------------------------------
+  // X12 835/837 (plan §3 bullet 2)
+  // -------------------------------------------------------------------
+
+  async detectImportFileKind(filePath: string): Promise<ImportFileKind> {
+    if (detectCsvXlsxFile(filePath)) {
+      return extname(filePath).toLowerCase() === '.csv' ? 'csv' : 'xlsx'
+    }
+    const x12Kind = await detectX12File(filePath)
+    if (x12Kind === '835') return 'x12-835'
+    if (x12Kind === '837') return 'x12-837'
+    return 'unknown'
+  }
+
+  async previewX12Import(filePath: string): Promise<X12ParseSummary> {
+    const content = await readFile(filePath, 'utf-8')
+    const kind = detectX12Kind(content)
+    if (!kind)
+      throw new Error(`"${filePath}" does not look like a recognizable X12 835 or 837 file.`)
+
+    if (kind === '835') {
+      const remit = parse835(content)
+      const lineCount = remit.claims.reduce((sum, claim) => sum + claim.serviceLines.length, 0)
+      const adjustmentCount = remit.claims.reduce(
+        (sum, claim) =>
+          sum +
+          claim.claimAdjustments.length +
+          claim.serviceLines.reduce((lineSum, line) => lineSum + line.adjustments.length, 0),
+        0
+      )
+      return x12ParseSummarySchema.parse({
+        kind,
+        claimsCount: remit.claims.length,
+        lineCount,
+        adjustmentCount,
+        totalPaymentAmount: remit.paymentAmount,
+        warnings: remit.warnings
+      })
+    }
+
+    const parsed = parse837(content)
+    const lineCount = parsed.claims.reduce((sum, claim) => sum + claim.serviceLines.length, 0)
+    return x12ParseSummarySchema.parse({
+      kind,
+      claimsCount: parsed.claims.length,
+      lineCount,
+      adjustmentCount: 0,
+      totalPaymentAmount: null,
+      warnings: parsed.warnings
+    })
+  }
+
+  async runX12Import(input: RunX12ImportInput): Promise<ImportJob> {
+    const validated = runX12ImportInputSchema.parse(input)
+    const content = await readFile(validated.filePath, 'utf-8')
+    const kind = detectX12Kind(content)
+    if (!kind) {
+      throw new Error(
+        `"${validated.filePath}" does not look like a recognizable X12 835 or 837 file.`
+      )
+    }
+
+    const runner = kind === '835' ? run835Import : run837Import
+    const result = await runner({
+      connection: this.duckdb.connection,
+      filePath: validated.filePath,
+      clientCode: validated.clientCode
+    })
+
+    const job = await this.getImportJob(result.jobId)
+    if (!job) throw new Error('Import job vanished immediately after running')
+    return job
   }
 
   // -------------------------------------------------------------------

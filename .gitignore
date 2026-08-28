@@ -33,8 +33,13 @@ userData/
 !.env.example
 
 # Raw EDI files that may contain PHI — never commit real 835/837s.
+# Negated below for sample-data/ ONLY: those are hand-built synthetic
+# fixtures, never real payer/patient data (see CONTRIBUTING.md's data
+# policy) — everywhere else, *.835/*.837 stay blocked.
 *.835
 *.837
+!sample-data/*.835
+!sample-data/*.837
 
 # Dedicated scratch directory for real files during local development.
 # (sample-data/ holds only synthetic fixtures and IS committed.)

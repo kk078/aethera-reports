@@ -18,6 +18,7 @@ import { applyMigrations } from '../src/main/db/migrate'
 import { migrations } from '../src/main/db/migrations'
 import { runCsvImport } from '../src/main/importers/csv-xlsx/run-csv-import'
 import { tebraClaimExportTemplate } from '../src/main/importers/csv-xlsx/presets/tebra'
+import { run835Import, run837Import } from '../src/main/importers/x12/run-x12-import'
 import type { MappingTemplate } from '../src/shared/domain'
 
 const FIXTURES_DIR = join(__dirname, '..', 'sample-data')
@@ -37,6 +38,7 @@ const TABLES = [
   'payers',
   'claims',
   'claim_lines',
+  'remittances',
   'denials',
   'import_jobs',
   'stg_rows',
@@ -95,6 +97,33 @@ async function main(): Promise<void> {
       clientCode: 'DEMO1'
     })
     console.log('  result:', malformedResult)
+
+    console.log('\n[e2e] importing sample-data/synthetic-837.837 for DEMO2 (X12 837 claims)...')
+    const claims837Result = await run837Import({
+      connection: db.connection,
+      filePath: join(FIXTURES_DIR, 'synthetic-837.837'),
+      clientCode: 'DEMO2'
+    })
+    console.log('  result:', claims837Result)
+
+    console.log('\n[e2e] re-importing the exact same 837 file (expect a no-op / dedup)...')
+    const dedup837Result = await run837Import({
+      connection: db.connection,
+      filePath: join(FIXTURES_DIR, 'synthetic-837.837'),
+      clientCode: 'DEMO2'
+    })
+    console.log(`  reusedExistingJob: ${dedup837Result.reusedExistingJob} (expected: true)`)
+
+    console.log('\n[e2e] importing sample-data/synthetic-835.835 for DEMO2 (X12 835 remittance)...')
+    const remit835Result = await run835Import({
+      connection: db.connection,
+      filePath: join(FIXTURES_DIR, 'synthetic-835.835'),
+      clientCode: 'DEMO2'
+    })
+    console.log('  result:', remit835Result)
+    console.log(
+      `  matched ${remit835Result.rowsLoaded} claim(s), quarantined ${remit835Result.rowsSkipped} unmatched remit(s)`
+    )
 
     console.log('\n[e2e] row counts per table:')
     await printTableCounts(db)

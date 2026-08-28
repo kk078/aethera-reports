@@ -16,6 +16,7 @@ import type {
   Client,
   ClientPatch,
   ClientReport,
+  ImportFileKind,
   ImportJob,
   MappingTemplate,
   MonthlySummary,
@@ -23,7 +24,9 @@ import type {
   NewClientInput,
   NewMappingTemplateInput,
   QuarantineRow,
-  RunCsvImportInput
+  RunCsvImportInput,
+  RunX12ImportInput,
+  X12ParseSummary
 } from '../../shared/domain'
 
 export interface IDataService {
@@ -46,6 +49,11 @@ export interface IDataService {
   getImportJob(jobId: number): Promise<ImportJob | null>
   runCsvImport(input: RunCsvImportInput): Promise<ImportJob>
   listQuarantineRows(jobId: number): Promise<QuarantineRow[]>
+
+  // --- X12 835/837 (plan §3 bullet 2) ---
+  detectImportFileKind(filePath: string): Promise<ImportFileKind>
+  previewX12Import(filePath: string): Promise<X12ParseSummary>
+  runX12Import(input: RunX12ImportInput): Promise<ImportJob>
 
   // --- Manual entry ---
   upsertMonthlySummary(input: MonthlySummaryInput): Promise<MonthlySummary>

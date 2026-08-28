@@ -64,6 +64,15 @@ production. To keep it that way:
   excludes `*.duckdb`, `*.db`, `*.sqlite`, `userData/`, `.env*`, and raw
   `*.835`/`*.837` files. Put any real files you're testing against locally
   in `local-data/` (also gitignored) — never in `sample-data/`.
+- **X12 835/837 fixtures are the one exception, and only under
+  `sample-data/`.** `.gitignore` blocks `*.835`/`*.837` everywhere, then
+  negates that with `!sample-data/*.835`/`!sample-data/*.837` — so a
+  `.835`/`.837` file is committable if and only if it lives directly in
+  `sample-data/` and is a hand-built synthetic fixture (see the ones
+  already there for the expected shape, including deliberately malformed
+  ones for parser-error-handling tests). Never drop a real ERA/claim file
+  in `sample-data/` to "just test something" — use `local-data/` for that,
+  even briefly.
 - **Secret scanning.** `npm run lint:secrets` runs
   [gitleaks](https://github.com/gitleaks/gitleaks) against the working
   tree using `.gitleaks.toml`. It also runs in CI on every push/PR. A
@@ -90,7 +99,7 @@ production. To keep it that way:
 - Run `npm run typecheck && npm test && npm run build` before opening a
   PR; CI will run the same on `ubuntu-latest`, plus a Windows installer
   build.
-- Describe *why*, not just *what*, in the PR description.
+- Describe _why_, not just _what_, in the PR description.
 
 ## License
 

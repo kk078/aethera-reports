@@ -4,19 +4,23 @@ import type {
   ImportJob,
   MappingColumn,
   MappingTemplate,
-  NewMappingTemplateInput
+  NewMappingTemplateInput,
+  X12ParseSummary
 } from '../../../../shared/domain'
 import {
+  detectImportFileKind,
   peekFileHeaders,
   pickImportFile,
   previewMapping,
+  previewX12Import,
   runCsvImport,
+  runX12Import,
   saveMappingTemplate,
   suggestMapping
 } from '../../lib/api'
 import { CLAIM_LINE_TARGET_FIELDS } from '../../../../shared/claim-fields'
 
-type WizardStep = 'setup' | 'mapping' | 'preview' | 'result'
+type WizardStep = 'setup' | 'mapping' | 'preview' | 'x12-preview' | 'result'
 
 interface DraftColumn {
   sourceHeader: string
@@ -46,6 +50,7 @@ function Wizard({ clients, templates, onImportComplete }: WizardProps): React.JS
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<ImportJob | null>(null)
+  const [x12Summary, setX12Summary] = useState<X12ParseSummary | null>(null)
 
   function reset(): void {
     setStep('setup')
@@ -55,6 +60,7 @@ function Wizard({ clients, templates, onImportComplete }: WizardProps): React.JS
     setDraftColumns([])
     setPreviewRows([])
     setResult(null)
+    setX12Summary(null)
     setError(null)
   }
 
@@ -64,11 +70,43 @@ function Wizard({ clients, templates, onImportComplete }: WizardProps): React.JS
       const picked = await pickImportFile()
       if (!picked) return
       setFilePath(picked)
+
+      const kind = await detectImportFileKind(picked)
+      if (kind === 'x12-835' || kind === 'x12-837') {
+        // X12 files skip the column-mapping wizard entirely (plan §3
+        // bullet 5) — go straight to a parse-summary preview.
+        setBusy(true)
+        try {
+          const summary = await previewX12Import(picked)
+          setX12Summary(summary)
+          setStep('x12-preview')
+        } finally {
+          setBusy(false)
+        }
+        return
+      }
+
       const detectedHeaders = await peekFileHeaders(picked)
       setHeaders(detectedHeaders)
       setStep('mapping')
     } catch (err) {
       setError(String(err))
+    }
+  }
+
+  async function handleRunX12(): Promise<void> {
+    if (!filePath || !clientCode) return
+    setBusy(true)
+    setError(null)
+    try {
+      const job = await runX12Import({ filePath, clientCode })
+      setResult(job)
+      setStep('result')
+      onImportComplete()
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -169,8 +207,63 @@ function Wizard({ clients, templates, onImportComplete }: WizardProps): React.JS
               ))}
             </select>
           </label>
-          <button type="button" disabled={!clientCode} onClick={() => void handlePickFile()}>
+          <button
+            type="button"
+            disabled={!clientCode || busy}
+            onClick={() => void handlePickFile()}
+          >
             Choose file…
+          </button>
+          <p className="hint">
+            CSV/XLSX claim exports go through the mapping wizard below. X12 835 (remittance) and 837
+            (claim) files are detected automatically and skip straight to a parse-summary preview.
+          </p>
+        </div>
+      )}
+
+      {step === 'x12-preview' && x12Summary && (
+        <div className="wizard-step">
+          <p>
+            File: <code>{filePath}</code> — detected as an X12 <strong>{x12Summary.kind}</strong>{' '}
+            file.
+          </p>
+          <table className="data-table">
+            <tbody>
+              <tr>
+                <th>Claims</th>
+                <td>{x12Summary.claimsCount}</td>
+              </tr>
+              <tr>
+                <th>Service lines</th>
+                <td>{x12Summary.lineCount}</td>
+              </tr>
+              <tr>
+                <th>Adjustments (CAS)</th>
+                <td>{x12Summary.adjustmentCount}</td>
+              </tr>
+              {x12Summary.totalPaymentAmount !== null && (
+                <tr>
+                  <th>Total payment amount (BPR02)</th>
+                  <td>{x12Summary.totalPaymentAmount.toFixed(2)}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          {x12Summary.warnings.length > 0 && (
+            <div className="form-error">
+              <p>{x12Summary.warnings.length} warning(s):</p>
+              <ul>
+                {x12Summary.warnings.map((warning, index) => (
+                  <li key={index}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <button type="button" onClick={reset}>
+            Back
+          </button>
+          <button type="button" disabled={busy} onClick={() => void handleRunX12()}>
+            {busy ? 'Running…' : 'Run import'}
           </button>
         </div>
       )}

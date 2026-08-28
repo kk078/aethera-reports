@@ -44,9 +44,17 @@ export function registerImportsHandlers(dataService: IDataService): void {
   ipcMain.handle('importJobs:pickFile', async (_event, rawPayload: unknown) => {
     parseIpcRequest('importJobs:pickFile', rawPayload)
     const { canceled, filePaths } = await dialog.showOpenDialog({
-      title: 'Select a claim export file',
+      title: 'Select a claim export or X12 835/837 file',
       properties: ['openFile'],
-      filters: [{ name: 'Claim exports', extensions: ['csv', 'xlsx', 'xls'] }]
+      filters: [
+        {
+          name: 'All supported imports',
+          extensions: ['csv', 'xlsx', 'xls', '835', '837', 'edi', 'txt']
+        },
+        { name: 'Claim exports', extensions: ['csv', 'xlsx', 'xls'] },
+        { name: 'X12 835/837', extensions: ['835', '837', 'edi', 'txt'] },
+        { name: 'All files', extensions: ['*'] }
+      ]
     })
     const filePath = !canceled && filePaths.length > 0 ? filePaths[0] : null
     return parseIpcResponse('importJobs:pickFile', { filePath })
@@ -62,6 +70,26 @@ export function registerImportsHandlers(dataService: IDataService): void {
     const request = parseIpcRequest('importJobs:suggestMapping', rawPayload)
     const suggestions = suggestColumnMappings(request.headers, CLAIM_LINE_TARGET_FIELDS)
     return parseIpcResponse('importJobs:suggestMapping', { suggestions })
+  })
+
+  // --- X12 835/837 (plan §3 bullet 2) ---
+
+  ipcMain.handle('importJobs:detectFileKind', async (_event, rawPayload: unknown) => {
+    const request = parseIpcRequest('importJobs:detectFileKind', rawPayload)
+    const kind = await dataService.detectImportFileKind(request.filePath)
+    return parseIpcResponse('importJobs:detectFileKind', { kind })
+  })
+
+  ipcMain.handle('importJobs:previewX12', async (_event, rawPayload: unknown) => {
+    const request = parseIpcRequest('importJobs:previewX12', rawPayload)
+    const summary = await dataService.previewX12Import(request.filePath)
+    return parseIpcResponse('importJobs:previewX12', { summary })
+  })
+
+  ipcMain.handle('importJobs:runX12', async (_event, rawPayload: unknown) => {
+    const request = parseIpcRequest('importJobs:runX12', rawPayload)
+    const job = await dataService.runX12Import(request)
+    return parseIpcResponse('importJobs:runX12', job)
   })
 
   ipcMain.handle('importJobs:previewMapping', async (_event, rawPayload: unknown) => {

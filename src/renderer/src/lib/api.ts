@@ -10,6 +10,7 @@ import type {
   ClientPatch,
   ClientReport,
   ExportResult,
+  ImportFileKind,
   ImportJob,
   MappingTemplate,
   MonthlySummary,
@@ -18,6 +19,8 @@ import type {
   NewMappingTemplateInput,
   QuarantineRow,
   RunCsvImportInput,
+  RunX12ImportInput,
+  X12ParseSummary,
   BackupStatus
 } from '../../../shared/domain'
 import type { IpcRequest, IpcResponse } from '../../../shared/ipc-contract'
@@ -111,6 +114,22 @@ export async function previewMapping(
 ): Promise<IpcResponse<'importJobs:previewMapping'>['rows']> {
   const { rows } = await window.aethera.invoke('importJobs:previewMapping', { filePath, mapping })
   return rows
+}
+
+// --- X12 835/837 ---
+
+export async function detectImportFileKind(filePath: string): Promise<ImportFileKind> {
+  const { kind } = await window.aethera.invoke('importJobs:detectFileKind', { filePath })
+  return kind
+}
+
+export async function previewX12Import(filePath: string): Promise<X12ParseSummary> {
+  const { summary } = await window.aethera.invoke('importJobs:previewX12', { filePath })
+  return summary
+}
+
+export function runX12Import(input: RunX12ImportInput): Promise<ImportJob> {
+  return window.aethera.invoke('importJobs:runX12', input)
 }
 
 // --- Manual entry ---

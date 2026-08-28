@@ -141,6 +141,35 @@ export const runCsvImportInputSchema = z.object({
 export type RunCsvImportInput = z.infer<typeof runCsvImportInputSchema>
 
 // ---------------------------------------------------------------------
+// X12 835/837 import (plan §3 bullet 2, Phase 2). The wizard skips the
+// column-mapping steps entirely for these files (bullet 5) and shows a
+// parse-summary preview — counts + warnings — before running the import.
+// ---------------------------------------------------------------------
+
+export const x12KindSchema = z.enum(['835', '837'])
+export type X12Kind = z.infer<typeof x12KindSchema>
+
+export const importFileKindSchema = z.enum(['csv', 'xlsx', 'x12-835', 'x12-837', 'unknown'])
+export type ImportFileKind = z.infer<typeof importFileKindSchema>
+
+export const x12ParseSummarySchema = z.object({
+  kind: x12KindSchema,
+  claimsCount: z.number().int().nonnegative(),
+  lineCount: z.number().int().nonnegative(),
+  adjustmentCount: z.number().int().nonnegative(),
+  /** BPR02 total payment amount — 835 only, null for an 837 preview. */
+  totalPaymentAmount: z.number().nullable(),
+  warnings: z.array(z.string())
+})
+export type X12ParseSummary = z.infer<typeof x12ParseSummarySchema>
+
+export const runX12ImportInputSchema = z.object({
+  filePath: z.string().min(1),
+  clientCode: z.string().min(1)
+})
+export type RunX12ImportInput = z.infer<typeof runX12ImportInputSchema>
+
+// ---------------------------------------------------------------------
 // Manual entry (plan §3 / Phase 1 step 6)
 // ---------------------------------------------------------------------
 
