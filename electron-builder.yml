@@ -72,6 +72,9 @@ linux:
   target:
     - AppImage
   category: Office
+  # Required by the deb target's control file; a project address, not a
+  # personal one (repo is public).
+  maintainer: Aethera Healthcare <noreply@aetherahealthcare.com>
 
 publish:
   provider: github
