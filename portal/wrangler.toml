@@ -1,0 +1,40 @@
+# Aethera Reports hosted client portal (Phase 3 chunk F) — Cloudflare
+# Worker config. Placeholders only — see docs/portal.md for the full
+# deploy walkthrough. NOT deployed as part of this change; author-only.
+#
+# Per the user's account conventions (never `wrangler login` globally):
+# CLOUDFLARE_ACCOUNT_ID and a scoped CLOUDFLARE_API_TOKEN live in this
+# directory's own .env (gitignored — copy .env.example), picked up by
+# wrangler automatically. Do not hardcode an account_id below.
+
+name = "aethera-reports-portal"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = []
+
+# The intended production hostname for the reference deployment
+# (Aethera Healthcare's own instance, same Cloudflare account as
+# aethera-academy) — public docs describe this as an example, not a
+# hardcoded dependency; anyone self-hosting the portal points this at
+# their own domain instead.
+#
+# [[routes]]
+# pattern = "reports.aetherahealthcare.com/*"
+# custom_domain = true
+
+# D1 database binding — create with `wrangler d1 create aethera-reports-portal`
+# (see docs/portal.md), then fill in the real database_id it prints.
+[[d1_databases]]
+binding = "DB"
+database_name = "aethera-reports-portal"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+# Secrets (never committed — set via `wrangler secret put <NAME>`, see
+# docs/portal.md):
+#   ADMIN_TOKEN     — Bearer token the desktop app's "Publish to portal"
+#                     action and Settings' portal connection use.
+#   SESSION_SECRET  — HMAC key for the short-lived session cookie
+#                     `/r/:token` sets after a magic link validates;
+#                     deliberately separate from ADMIN_TOKEN (see
+#                     src/session.ts's header comment for why).

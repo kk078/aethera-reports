@@ -68,6 +68,7 @@ import {
   monthlySummarySchema,
   newClientInputSchema,
   newMappingTemplateInputSchema,
+  portalSettingsSchema,
   quarantineRowSchema,
   referenceApiCacheRefreshResultSchema,
   referenceApiSettingsSchema,
@@ -104,6 +105,7 @@ import {
   type PayerAnalysisRow,
   type PayerMixTrendPoint,
   type PayerVsPatientSplit,
+  type PortalSettings,
   type QuarantineRow,
   type ReferenceApiCacheRefreshResult,
   type ReferenceApiSettings,
@@ -1361,6 +1363,59 @@ export class LocalDataService implements IDataService {
     return {
       data: String(row.password_data),
       encoding: row.password_encoding === 'safeStorage' ? 'safeStorage' : 'plaintext'
+    }
+  }
+
+  // -------------------------------------------------------------------
+  // Hosted client portal (plan's Phase 3 addendum, chunk F)
+  // -------------------------------------------------------------------
+
+  private mapPortalSettingsRow(row: DbRow | undefined): PortalSettings {
+    return portalSettingsSchema.parse({
+      baseUrl: (row?.base_url as string | null) ?? null,
+      hasAdminToken: Boolean(row?.admin_token_data),
+      tokenEncoding: (row?.admin_token_encoding as 'safeStorage' | 'plaintext' | null) ?? null
+    })
+  }
+
+  async getPortalSettings(): Promise<PortalSettings> {
+    const row = this.meta.prepare('SELECT * FROM portal_settings WHERE id = 1').get() as
+      DbRow | undefined
+    return this.mapPortalSettingsRow(row)
+  }
+
+  async savePortalSettings(input: {
+    baseUrl: string
+    encryptedAdminToken?: EncryptedSecretInput
+  }): Promise<PortalSettings> {
+    const existing = this.meta.prepare('SELECT * FROM portal_settings WHERE id = 1').get() as
+      DbRow | undefined
+    const tokenData =
+      input.encryptedAdminToken?.data ?? (existing?.admin_token_data as string | undefined) ?? null
+    const tokenEncoding =
+      input.encryptedAdminToken?.encoding ??
+      (existing?.admin_token_encoding as string | undefined) ??
+      null
+
+    this.meta
+      .prepare(
+        `INSERT INTO portal_settings (id, base_url, admin_token_data, admin_token_encoding, updated_at)
+         VALUES (1, ?, ?, ?, datetime('now'))
+         ON CONFLICT (id) DO UPDATE SET
+           base_url = excluded.base_url, admin_token_data = excluded.admin_token_data,
+           admin_token_encoding = excluded.admin_token_encoding, updated_at = excluded.updated_at`
+      )
+      .run(input.baseUrl, tokenData, tokenEncoding)
+    return this.getPortalSettings()
+  }
+
+  async getEncryptedPortalAdminToken(): Promise<EncryptedSecretInput | null> {
+    const row = this.meta.prepare('SELECT * FROM portal_settings WHERE id = 1').get() as
+      DbRow | undefined
+    if (!row?.admin_token_data) return null
+    return {
+      data: String(row.admin_token_data),
+      encoding: row.admin_token_encoding === 'safeStorage' ? 'safeStorage' : 'plaintext'
     }
   }
 

@@ -18,6 +18,8 @@ import { exportClientReport } from '../exporters/report'
 import { decryptCredential } from '../credentials'
 import { createSmtpTransport, sendReportPack, renderTemplate, type SendResult } from './email'
 import { selectDueRules, resolveRuleClientCodes, priorMonthPeriod } from './scheduler'
+import { publishClientToPortal } from './portal-publish'
+import type { PortalConfig } from './portal-client'
 import type { IDataService } from '../services/data-service'
 import type {
   AutomationRule,
@@ -30,13 +32,15 @@ import type {
 
 export type SchedulerLogger = (line: string) => void
 
-interface ResolvedSmtp {
+export interface ResolvedSmtp {
   transport: ReturnType<typeof createSmtpTransport>
   fromAddress: string
 }
 
-/** `null` when SMTP isn't configured yet — callers queue instead of sending. */
-async function resolveSmtpTransport(dataService: IDataService): Promise<ResolvedSmtp | null> {
+/** `null` when SMTP isn't configured yet — callers queue instead of sending. Exported so `ipc/portal.ts` can resolve the same transport for portal link emails (plan's Phase 3 addendum, chunk F) without duplicating this logic. */
+export async function resolveSmtpTransport(
+  dataService: IDataService
+): Promise<ResolvedSmtp | null> {
   const settings = await dataService.getEmailSettings()
   if (!settings.host || !settings.port || !settings.fromAddress) return null
   const secret = await dataService.getEncryptedEmailPassword()
@@ -51,6 +55,15 @@ async function resolveSmtpTransport(dataService: IDataService): Promise<Resolved
     }),
     fromAddress: settings.fromAddress
   }
+}
+
+/** `null` when the portal isn't configured yet — callers skip publishing rather than failing the whole rule. */
+export async function resolvePortalConfig(dataService: IDataService): Promise<PortalConfig | null> {
+  const settings = await dataService.getPortalSettings()
+  if (!settings.baseUrl) return null
+  const secret = await dataService.getEncryptedPortalAdminToken()
+  if (!secret) return null
+  return { baseUrl: settings.baseUrl, adminToken: decryptCredential(secret) }
 }
 
 async function deliverOrQueue(
@@ -168,6 +181,39 @@ export async function runOneRule(
       }
     }
 
+    if (rule.deliver === 'portal') {
+      const portalConfig = await resolvePortalConfig(dataService)
+      if (!portalConfig) {
+        log(`[scheduler] rule "${rule.name}": portal is not configured — skipping portal publish.`)
+      } else {
+        const smtp = await resolveSmtpTransport(dataService)
+        for (const client of targetClients) {
+          try {
+            const outcome = await publishClientToPortal(
+              dataService,
+              portalConfig,
+              smtp,
+              client,
+              periodMonth,
+              true
+            )
+            if (!outcome.ok)
+              log(`[scheduler] ${client.code}: portal publish failed — ${outcome.error}`)
+            for (const linkResult of outcome.linksSent) {
+              if (!linkResult.ok) {
+                log(`[scheduler] ${client.code} -> ${linkResult.email}: ${linkResult.error}`)
+              }
+            }
+          } catch (error) {
+            // Per-client isolation, exactly like email delivery above.
+            log(
+              `[scheduler] ${client.code}: portal publish threw — ${error instanceof Error ? error.message : String(error)}`
+            )
+          }
+        }
+      }
+    }
+
     const anyExportFailed = results.some((r) => r.error !== null)
     await dataService.recordRuleRun(rule.ruleId, periodMonth, anyExportFailed ? 'error' : 'ok')
     log(`[scheduler] rule "${rule.name}" ran for ${periodMonth}: ${results.length} export(s).`)
@@ -261,6 +307,7 @@ export async function dryRunRule(
     clientCodes,
     formats: rule.formats,
     wouldDeliverEmail: rule.deliver === 'email',
+    wouldPublishToPortal: rule.deliver === 'portal',
     recipientsByClient
   }
 }

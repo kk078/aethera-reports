@@ -40,6 +40,7 @@ import type {
   PayerAnalysisRow,
   PayerMixTrendPoint,
   PayerVsPatientSplit,
+  PortalSettings,
   QuarantineRow,
   ReferenceApiCacheRefreshResult,
   ReferenceApiSettings,
@@ -184,6 +185,15 @@ export interface IDataService {
   listEmailSendQueue(): Promise<EmailSendQueueRow[]>
   markEmailSendResult(queueId: number, ok: boolean, error: string | null): Promise<void>
   listExportAuditLog(limit?: number): Promise<ExportAuditLogRow[]>
+
+  // --- Hosted client portal (plan's Phase 3 addendum, chunk F) ---
+  getPortalSettings(): Promise<PortalSettings>
+  /** `encryptedAdminToken` already-encrypted by the caller, same pattern as the RCM connector's password / email's SMTP password. Omit to keep the currently stored one. */
+  savePortalSettings(input: {
+    baseUrl: string
+    encryptedAdminToken?: EncryptedSecretInput
+  }): Promise<PortalSettings>
+  getEncryptedPortalAdminToken(): Promise<EncryptedSecretInput | null>
 
   // --- KPI engine / reports (plan §4) ---
   buildClientReport(clientId: number, periodMonth: string): Promise<ClientReport>

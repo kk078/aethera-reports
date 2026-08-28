@@ -76,6 +76,7 @@ import type {
   PayerAnalysisRow,
   PayerMixTrendPoint,
   PayerVsPatientSplit,
+  PortalSettings,
   QuarantineRow,
   ReferenceApiCacheRefreshResult,
   ReferenceApiSettings,
@@ -539,6 +540,22 @@ export class RemoteDataService implements IDataService {
   }
   async listExportAuditLog(limit?: number): Promise<ExportAuditLogRow[]> {
     return (await this.callRpc('listExportAuditLog', { limit })).rows
+  }
+
+  // -------------------------------------------------------------------
+  // Hosted client portal
+  // -------------------------------------------------------------------
+  async getPortalSettings(): Promise<PortalSettings> {
+    return this.callRpc('getPortalSettings', {})
+  }
+  async savePortalSettings(input: {
+    baseUrl: string
+    encryptedAdminToken?: EncryptedSecretInput
+  }): Promise<PortalSettings> {
+    return this.callRpc('savePortalSettings', input)
+  }
+  async getEncryptedPortalAdminToken(): Promise<EncryptedSecretInput | null> {
+    return (await this.callRpc('getEncryptedPortalAdminToken', {})).secret
   }
 
   // -------------------------------------------------------------------

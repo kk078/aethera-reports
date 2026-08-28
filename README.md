@@ -212,10 +212,27 @@ npm run server                                       # run the server (default: 
 npm run server:user -- add <username> <password>      # seed a staff login
 ```
 
-See **`docs/server-mode.md`** for full setup, Docker (`server/Dockerfile`
+See **`docs/server-mode.md`** for full setup, Docker
+(`server/Dockerfile` and `server/docker-compose.yml`), and LAN/Tailscale
+network-exposure guidance.
 
-- `server/docker-compose.yml`), and LAN/Tailscale network-exposure
-  guidance.
+## Hosted client portal
+
+An optional Cloudflare Worker (`portal/`, Hono + D1) publishes a
+client's report as a mobile-friendly, read-only web page and emails each
+recipient a private, expiring link — no patient-level data, ever, only
+the same aggregate `ClientReport` JSON the dashboards/exports already
+use. Also entirely optional; the app works the same without it.
+
+```bash
+cd portal && npx wrangler dev    # local dev, once you've deployed a D1 database (see docs/portal.md)
+```
+
+Connect it from **Settings → Hosted client portal**, then use
+ClientDetail's **"Publish to portal"** button or a scheduler rule with
+Delivery set to "Publish to portal + email links". See
+**`docs/portal.md`** for the full deploy walkthrough, link lifecycle,
+and security notes.
 
 ## Contributing
 

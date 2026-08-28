@@ -28,6 +28,7 @@ src/
 ├── preload/      # contextBridge — the ONLY code with access to both Node and window
 └── renderer/     # React app (screens, components, state)
 server/           # shared server mode (Phase 3) — Fastify, no Electron; see docs/server-mode.md
+portal/           # hosted client portal (Phase 3) — Cloudflare Worker, Hono + D1; see docs/portal.md
 test/             # vitest
 sample-data/      # synthetic fixtures only — see Data policy below
 ```
@@ -51,11 +52,19 @@ is the desktop-side mirror: it implements `IDataService` over HTTP
 against `server/`, so Settings' "Data mode: Server" is a drop-in swap for
 everything above the `IDataService` seam.
 
+`portal/` is a separate TypeScript project (`portal/tsconfig.json`,
+`@cloudflare/workers-types` instead of `@types/node` — the two declare
+conflicting globals, hence the split; `npm run typecheck` runs it as a
+third project alongside the desktop's two). It's still plain
+Hono/Web-Crypto code with no Workers-runtime dependency for its own
+logic, so `portal/test/*.test.ts` runs under the same vitest project as
+everything else via `app.request()` — no Miniflare needed.
+
 ## Commands
 
 ```bash
-npm run typecheck    # tsc project references, no emit
-npm test             # vitest
+npm run typecheck    # tsc: desktop main + web + portal/ as a third project
+npm test             # vitest (desktop + portal/test)
 npm run lint         # eslint
 npm run format       # prettier --write
 npm run build        # electron-vite build (also typechecks)

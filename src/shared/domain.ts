@@ -700,7 +700,7 @@ export const automationRuleSchema = z.object({
   clients: z.union([z.literal('all'), z.array(z.string())]),
   formats: z.array(exportFormatSchema).min(1),
   outputDir: z.string().nullable(),
-  deliver: z.enum(['none', 'email']),
+  deliver: z.enum(['none', 'email', 'portal']),
   enabled: z.boolean(),
   /** "YYYY-MM" of the period this rule last successfully ran for — the once-per-period guard (plan §11). */
   lastRunPeriod: z.string().nullable(),
@@ -716,7 +716,7 @@ export const automationRuleInputSchema = z.object({
   clients: z.union([z.literal('all'), z.array(z.string())]),
   formats: z.array(exportFormatSchema).min(1),
   outputDir: z.string().nullable().optional(),
-  deliver: z.enum(['none', 'email']),
+  deliver: z.enum(['none', 'email', 'portal']),
   enabled: z.boolean()
 })
 export type AutomationRuleInput = z.infer<typeof automationRuleInputSchema>
@@ -738,6 +738,8 @@ export const dryRunResultSchema = z.object({
   clientCodes: z.array(z.string()),
   formats: z.array(exportFormatSchema),
   wouldDeliverEmail: z.boolean(),
+  /** `deliver: 'portal'` (Phase 3 chunk F) — publishes a snapshot per client, then emails magic links instead of file attachments. */
+  wouldPublishToPortal: z.boolean(),
   recipientsByClient: z.record(z.string(), z.array(z.string()))
 })
 export type DryRunResult = z.infer<typeof dryRunResultSchema>
@@ -798,6 +800,48 @@ export const sendReportPackResultSchema = z.object({
   queued: z.boolean()
 })
 export type SendReportPackResult = z.infer<typeof sendReportPackResultSchema>
+
+// ---------------------------------------------------------------------
+// Hosted client portal (Phase 3 chunk F) — settings for the desktop's
+// "Publish to portal" action. Mirrors the RCM connector/email settings
+// pattern exactly: `adminToken` arrives here as plaintext once (from the
+// Settings form) and is encrypted by the IPC handler before it ever
+// reaches `IDataService`/meta.db (see `saveConnectorSettings`'s comment
+// for the precedent) — `portalSettingsInputSchema` is the IPC-facing
+// shape; `IDataService.savePortalSettings` takes an already-encrypted
+// `EncryptedSecretInput` instead (see `data-service.ts`).
+// ---------------------------------------------------------------------
+
+export const portalSettingsSchema = z.object({
+  baseUrl: z.string().nullable(),
+  hasAdminToken: z.boolean(),
+  tokenEncoding: z.enum(['safeStorage', 'plaintext']).nullable()
+})
+export type PortalSettings = z.infer<typeof portalSettingsSchema>
+
+export const portalSettingsInputSchema = z.object({
+  baseUrl: z.string().min(1),
+  /** Omit to keep the currently stored admin token unchanged. */
+  adminToken: z.string().min(1).optional()
+})
+export type PortalSettingsInput = z.infer<typeof portalSettingsInputSchema>
+
+export const publishToPortalInputSchema = z.object({
+  clientId: z.number().int().positive(),
+  periodMonth: z.string().regex(/^\d{4}-\d{2}$/),
+  /** Mint + email magic links to `report_recipients` after publishing (ClientDetail's "Publish to portal" checkbox; always true for a scheduled `deliver: 'portal'` rule). */
+  sendLinks: z.boolean().default(true)
+})
+export type PublishToPortalInput = z.infer<typeof publishToPortalInputSchema>
+
+export const publishToPortalResultSchema = z.object({
+  clientCode: z.string(),
+  ok: z.boolean(),
+  error: z.string().nullable(),
+  /** Present only when `ok` and a link was actually minted (i.e. `sendLinks` and the client had at least one recipient). */
+  linksSent: z.array(z.object({ email: z.string(), ok: z.boolean(), error: z.string().nullable() }))
+})
+export type PublishToPortalResult = z.infer<typeof publishToPortalResultSchema>
 
 /** One row from the export audit log (plan §6) — read back for the Automation screen's run history (plan §11). */
 export const exportAuditLogRowSchema = z.object({

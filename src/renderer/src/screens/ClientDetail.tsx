@@ -7,6 +7,7 @@ import {
   getClientFinancialTrend,
   getClientReport,
   listClients,
+  publishToPortal,
   sendReportPackNow
 } from '../lib/api'
 import ReportDocument, { type FinancialTrendPoint } from '../report-doc/ReportDocument'
@@ -35,6 +36,8 @@ function ClientDetail(): React.JSX.Element {
   const [exportMessage, setExportMessage] = useState<string | null>(null)
   const [formats, setFormats] = useState<Set<ExportFormat>>(new Set(['pdf']))
   const [sending, setSending] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  const [publishSendLinks, setPublishSendLinks] = useState(true)
 
   useEffect(() => {
     listClients().then((all) => {
@@ -108,6 +111,36 @@ function ClientDetail(): React.JSX.Element {
     }
   }
 
+  /** "Publish to portal" (plan's Phase 3 addendum, chunk F): publishes this client+period's report JSON to the configured portal, then — unless unchecked — emails each report_recipient a private, expiring link. */
+  async function handlePublishToPortal(): Promise<void> {
+    if (!clientId) return
+    setPublishing(true)
+    setExportMessage(null)
+    try {
+      const result = await publishToPortal({
+        clientId,
+        periodMonth: period,
+        sendLinks: publishSendLinks
+      })
+      if (!result.ok) {
+        setExportMessage(`Publish failed: ${result.error}`)
+      } else if (result.linksSent.length === 0) {
+        setExportMessage(`Published ${result.clientCode}'s report to the portal.`)
+      } else {
+        const failed = result.linksSent.filter((l) => !l.ok)
+        setExportMessage(
+          failed.length === 0
+            ? `Published and emailed links to ${result.linksSent.length} recipient(s).`
+            : `Published. ${result.linksSent.length - failed.length} link(s) sent, ${failed.length} failed: ${failed.map((l) => `${l.email} (${l.error})`).join('; ')}`
+        )
+      }
+    } catch (err) {
+      setExportMessage(String(err))
+    } finally {
+      setPublishing(false)
+    }
+  }
+
   return (
     <section className="screen-placeholder">
       <h1>Client Detail</h1>
@@ -155,6 +188,21 @@ function ClientDetail(): React.JSX.Element {
           onClick={() => void handleSendPack()}
         >
           {sending ? 'Sending…' : 'Send pack'}
+        </button>
+        <label>
+          <input
+            type="checkbox"
+            checked={publishSendLinks}
+            onChange={(e) => setPublishSendLinks(e.target.checked)}
+          />
+          Email links
+        </label>
+        <button
+          type="button"
+          disabled={!clientId || publishing}
+          onClick={() => void handlePublishToPortal()}
+        >
+          {publishing ? 'Publishing…' : 'Publish to portal'}
         </button>
       </div>
       {exportMessage && <p>{exportMessage}</p>}

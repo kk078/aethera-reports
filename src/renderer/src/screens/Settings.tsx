@@ -17,6 +17,7 @@ import {
   getConnectorSyncStatus,
   getDataMode,
   getEmailSettings,
+  getPortalSettings,
   getReferenceApiSettings,
   listClients,
   listMappingTemplates,
@@ -28,6 +29,7 @@ import {
   runBackupNow,
   saveConnectorSettings,
   saveEmailSettings,
+  savePortalSettings,
   saveReferenceApiSettings,
   scanInboxNow,
   setAutomationInboxRoot,
@@ -37,6 +39,7 @@ import {
   syncConnectorNow,
   testConnectorConnection,
   testEmailConnection,
+  testPortalConnection,
   testReferenceApiConnection,
   testServerDataModeConnection,
   updateBranding
@@ -345,6 +348,108 @@ function ReferenceApiSection(): React.JSX.Element {
  * effect after a restart — this section walks the user through that
  * explicitly rather than restarting out from under them.
  */
+/**
+ * Hosted client portal (plan's Phase 3 addendum, chunk F) — where staff
+ * point this install at a deployed `portal/` Worker so ClientDetail's
+ * "Publish to portal" button and `deliver: 'portal'` scheduler rules
+ * have somewhere to publish to. The admin token is write-only from here
+ * (never read back) — same pattern as the RCM connector's password.
+ */
+function PortalSection(): React.JSX.Element {
+  const [baseUrl, setBaseUrl] = useState('')
+  const [adminToken, setAdminToken] = useState('')
+  const [hasAdminToken, setHasAdminToken] = useState(false)
+  const [tokenEncoding, setTokenEncoding] = useState<'safeStorage' | 'plaintext' | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  function refresh(): void {
+    getPortalSettings().then((s) => {
+      setBaseUrl(s.baseUrl ?? '')
+      setHasAdminToken(s.hasAdminToken)
+      setTokenEncoding(s.tokenEncoding)
+    })
+  }
+
+  useEffect(refresh, [])
+
+  async function handleSave(event: React.FormEvent): Promise<void> {
+    event.preventDefault()
+    setBusy(true)
+    setMessage(null)
+    try {
+      await savePortalSettings({
+        baseUrl: baseUrl.trim(),
+        adminToken: adminToken.trim() || undefined
+      })
+      setAdminToken('')
+      setMessage('Saved.')
+      refresh()
+    } catch (error) {
+      setMessage(String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleTest(): Promise<void> {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const result = await testPortalConnection()
+      setMessage(result.ok ? `✓ ${result.message}` : `✗ ${result.message}`)
+    } catch (error) {
+      setMessage(String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <h2>Hosted client portal</h2>
+      <p>
+        Optional — publish a client&apos;s report as a read-only page a deployed{' '}
+        <code>portal/</code> Worker serves, and email each recipient a private, expiring link
+        instead of (or alongside) attaching files. See <code>docs/portal.md</code> for deploying the
+        Worker.
+      </p>
+      <form className="client-form" onSubmit={(e) => void handleSave(e)}>
+        {message && <p>{message}</p>}
+        <label>
+          Portal URL
+          <input
+            placeholder="https://reports.example.com"
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+          />
+        </label>
+        <label>
+          Admin token
+          <input
+            type="password"
+            placeholder={hasAdminToken ? '•••••••• (leave blank to keep)' : ''}
+            value={adminToken}
+            onChange={(e) => setAdminToken(e.target.value)}
+          />
+        </label>
+        {hasAdminToken && tokenEncoding === 'plaintext' && (
+          <p>
+            Warning: this machine has no OS-level credential store available, so the admin token is
+            stored in plaintext in the local database.
+          </p>
+        )}
+        <button type="submit" disabled={busy}>
+          Save
+        </button>
+        <button type="button" disabled={busy} onClick={() => void handleTest()}>
+          Test connection
+        </button>
+      </form>
+    </>
+  )
+}
+
 function DataModeSection(): React.JSX.Element {
   const [status, setStatus] = useState<DataModeStatus | null>(null)
   const [baseUrl, setBaseUrl] = useState('')
@@ -972,6 +1077,7 @@ function Settings(): React.JSX.Element {
       <ReferenceApiSection />
       <WatchFolderSection />
       <EmailSection />
+      <PortalSection />
       <BackupsSection />
       <DataModeSection />
 

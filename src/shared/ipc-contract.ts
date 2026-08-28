@@ -63,6 +63,10 @@ import {
   payerAnalysisRowSchema,
   payerMixTrendPointSchema,
   payerVsPatientSplitSchema,
+  portalSettingsInputSchema,
+  portalSettingsSchema,
+  publishToPortalInputSchema,
+  publishToPortalResultSchema,
   quarantineRowSchema,
   referenceApiCacheRefreshResultSchema,
   referenceApiSettingsInputSchema,
@@ -468,6 +472,27 @@ export const ipcContract = {
   'app:restart': {
     request: emptyRequestSchema,
     response: z.object({ ok: z.boolean() })
+  },
+
+  // --- Hosted client portal (plan's Phase 3 addendum, chunk F) ---
+  'portal:getSettings': {
+    request: emptyRequestSchema,
+    response: portalSettingsSchema
+  },
+  'portal:saveSettings': {
+    // The plaintext admin token never reaches `IDataService` — the
+    // handler encrypts it via `credentials.ts` first, same pattern as
+    // the RCM connector/email settings.
+    request: portalSettingsInputSchema,
+    response: portalSettingsSchema
+  },
+  'portal:testConnection': {
+    request: emptyRequestSchema,
+    response: connectorTestResultSchema
+  },
+  'portal:publishReport': {
+    request: publishToPortalInputSchema,
+    response: publishToPortalResultSchema
   }
 } as const
 

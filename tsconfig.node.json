@@ -10,6 +10,16 @@
     "scripts/**/*",
     "server/**/*"
   ],
+  // scripts/e2e-portal.ts deliberately imports from BOTH src/main/ (this
+  // project's Node/Electron types) AND portal/src/ (its own
+  // @cloudflare/workers-types project, see portal/tsconfig.json) — the
+  // two global type environments conflict (Buffer/Response/etc.), so
+  // this one cross-cutting integration script is excluded from
+  // `tsc --noEmit` here. It's still fully covered by `npm run
+  // e2e:portal` actually executing it (vite-node transpiles without
+  // type-checking) and by portal/test's + test/'s unit coverage of the
+  // two sides it bridges.
+  "exclude": ["scripts/e2e-portal.ts"],
   "compilerOptions": {
     "composite": true,
     "types": ["electron-vite/node"]

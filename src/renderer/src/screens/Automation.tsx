@@ -29,7 +29,7 @@ interface RuleFormState {
   clientsAll: boolean
   clientCodes: string
   formats: Set<ExportFormat>
-  deliver: 'none' | 'email'
+  deliver: 'none' | 'email' | 'portal'
   outputDir: string
   enabled: boolean
 }
@@ -245,10 +245,13 @@ function Automation(): React.JSX.Element {
           Delivery
           <select
             value={form.deliver}
-            onChange={(e) => setForm({ ...form, deliver: e.target.value as 'none' | 'email' })}
+            onChange={(e) =>
+              setForm({ ...form, deliver: e.target.value as 'none' | 'email' | 'portal' })
+            }
           >
             <option value="none">None (files only)</option>
             <option value="email">Email report_recipients</option>
+            <option value="portal">Publish to portal + email links</option>
           </select>
         </label>
         <label>
@@ -337,8 +340,10 @@ function Automation(): React.JSX.Element {
           <p>Would generate for: {dryRun.clientCodes.join(', ') || '(no matching clients)'}</p>
           <p>Formats: {dryRun.formats.join(', ')}</p>
           <p>
-            Would deliver by email:{' '}
-            {dryRun.wouldDeliverEmail
+            {dryRun.wouldPublishToPortal
+              ? 'Would publish to portal and email links to: '
+              : 'Would deliver by email: '}
+            {dryRun.wouldDeliverEmail || dryRun.wouldPublishToPortal
               ? Object.entries(dryRun.recipientsByClient)
                   .map(
                     ([code, recipients]) =>

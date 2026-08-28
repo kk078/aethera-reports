@@ -74,6 +74,7 @@ import {
   payerAnalysisRowSchema,
   payerMixTrendPointSchema,
   payerVsPatientSplitSchema,
+  portalSettingsSchema,
   quarantineRowSchema,
   referenceApiCacheRefreshResultSchema,
   referenceApiSettingsInputSchema,
@@ -437,6 +438,26 @@ export const rpcContract = {
     request: z.object({ limit: z.number().int().positive().max(1000).optional() }),
     response: z.object({ rows: z.array(exportAuditLogRowSchema) }),
     invoke: async (ds, req) => ({ rows: await ds.listExportAuditLog(req.limit) })
+  }),
+
+  // --- Hosted client portal (plan's Phase 3 addendum, chunk F) ---
+  getPortalSettings: defineMethod({
+    request: emptyRequestSchema,
+    response: portalSettingsSchema,
+    invoke: (ds) => ds.getPortalSettings()
+  }),
+  savePortalSettings: defineMethod({
+    request: z.object({
+      baseUrl: z.string().min(1),
+      encryptedAdminToken: encryptedSecretInputSchema.optional()
+    }),
+    response: portalSettingsSchema,
+    invoke: (ds, req) => ds.savePortalSettings(req)
+  }),
+  getEncryptedPortalAdminToken: defineMethod({
+    request: emptyRequestSchema,
+    response: z.object({ secret: optionalEncryptedSecretSchema }),
+    invoke: async (ds) => ({ secret: await ds.getEncryptedPortalAdminToken() })
   }),
 
   // --- KPI engine / reports ---

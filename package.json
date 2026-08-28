@@ -19,7 +19,8 @@
     "lint:secrets": "bash scripts/lint-secrets.sh",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
-    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "typecheck:portal": "tsc --noEmit -p portal/tsconfig.json",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web && npm run typecheck:portal",
     "test": "vitest run",
     "test:watch": "vitest",
     "start": "electron-vite preview",
@@ -38,7 +39,8 @@
     "cli": "vite-node src/main/cli-entry.ts --",
     "server": "vite-node server/src/index.ts",
     "server:user": "vite-node server/src/cli.ts --",
-    "e2e:server-mode": "vite-node scripts/e2e-server-mode.ts"
+    "e2e:server-mode": "vite-node scripts/e2e-server-mode.ts",
+    "e2e:portal": "vite-node scripts/e2e-portal.ts"
   },
   "dependencies": {
     "@duckdb/node-api": "1.5.5-r.4",
@@ -53,6 +55,7 @@
     "exceljs": "^4.4.0",
     "fastify": "^5.12.1",
     "fastify-plugin": "^6.0.0",
+    "hono": "^4.13.5",
     "nodemailer": "^9.0.6",
     "papaparse": "^5.7.0",
     "pptxgenjs": "^4.0.1",
@@ -62,6 +65,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260828.1",
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
@@ -84,6 +88,7 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "wrangler": "^4.127.0"
   }
 }

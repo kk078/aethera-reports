@@ -39,6 +39,10 @@ import type {
   PayerAnalysisRow,
   PayerMixTrendPoint,
   PayerVsPatientSplit,
+  PortalSettings,
+  PortalSettingsInput,
+  PublishToPortalInput,
+  PublishToPortalResult,
   QuarantineRow,
   ReferenceApiCacheRefreshResult,
   ReferenceApiSettings,
@@ -496,4 +500,22 @@ export function testServerDataModeConnection(
 
 export async function restartApp(): Promise<void> {
   await window.aethera.invoke('app:restart', {})
+}
+
+// --- Hosted client portal (plan's Phase 3 addendum, chunk F) ---
+
+export function getPortalSettings(): Promise<PortalSettings> {
+  return window.aethera.invoke('portal:getSettings', {})
+}
+
+export function savePortalSettings(input: PortalSettingsInput): Promise<PortalSettings> {
+  return window.aethera.invoke('portal:saveSettings', input)
+}
+
+export function testPortalConnection(): Promise<{ ok: boolean; message: string }> {
+  return window.aethera.invoke('portal:testConnection', {})
+}
+
+export function publishToPortal(input: PublishToPortalInput): Promise<PublishToPortalResult> {
+  return window.aethera.invoke('portal:publishReport', input)
 }

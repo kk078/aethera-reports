@@ -181,6 +181,17 @@ export function initMetaSchema(db: Database.Database): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       last_attempt_at TEXT
     );
+
+    -- Hosted client portal settings (Phase 3 chunk F) — singleton, admin
+    -- token encrypted the same way as the RCM connector's password / SMTP
+    -- password (src/main/credentials.ts).
+    CREATE TABLE IF NOT EXISTS portal_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      base_url TEXT,
+      admin_token_data TEXT,
+      admin_token_encoding TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `)
 }
 
