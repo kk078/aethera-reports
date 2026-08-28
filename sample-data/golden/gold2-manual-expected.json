@@ -1,0 +1,51 @@
+{
+  "_comment": "Expected buildClientReport() output for client GOLD2, period 2020-03, which has NO claim-level data \u2014 only a monthly_summaries row. Exercises the manual fallback rung of the plan \u00a74 fallback ladder.",
+  "client": {
+    "code": "GOLD2",
+    "name": "Golden Manual Client",
+    "contract": "$25.00 per claim"
+  },
+  "period": {
+    "start": "2020-03-01",
+    "end": "2020-03-31"
+  },
+  "source": "manual",
+  "volume": {
+    "encountersReceived": 10,
+    "claimsSubmitted": 10,
+    "denialsReceived": 2
+  },
+  "financials": {
+    "grossCharges": 5000,
+    "insuranceCollections": 3000,
+    "patientCollections": 200,
+    "totalCollections": 3200,
+    "rcmFee": 250,
+    "netCollectionRatePct": null
+  },
+  "kpis": {
+    "daysInAr": null,
+    "openAr": 1200,
+    "arOver90Pct": 25,
+    "chargeLagDaysAvg": null,
+    "slaDaysToSubmit": 5,
+    "slaMetPct": null,
+    "firstPassAcceptancePct": null,
+    "denialRatePct": 20
+  },
+  "arAging": {
+    "0-30": 300,
+    "31-60": 400,
+    "61-90": 200,
+    "91-120": 200,
+    "120+": 100
+  },
+  "kpiTrends": {
+    "series": [],
+    "latest": null,
+    "deltas": {}
+  },
+  "denialsByRootCause": {},
+  "claimsByStatus": {},
+  "payerMix": []
+}

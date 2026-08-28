@@ -1,0 +1,47 @@
+# --- Node / Electron build ---
+node_modules
+dist
+out
+release
+.DS_Store
+.eslintcache
+*.log*
+.vite/
+
+# --- Editors / OS ---
+.idea
+*.swp
+Thumbs.db
+
+# --- Data-leak guards (Risk 4: PHI must never enter the repo) ---
+# Local analytics/metadata databases created by the app at runtime.
+*.duckdb
+*.duckdb.wal
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Electron userData / app data (backups, logs, caches).
+userData/
+
+# Environment files that may hold connector credentials.
+.env
+.env.*
+!.env.example
+
+# Raw EDI files that may contain PHI — never commit real 835/837s.
+*.835
+*.837
+
+# Dedicated scratch directory for real files during local development.
+# (sample-data/ holds only synthetic fixtures and IS committed.)
+local-data/
+
+# Secret-scan tool caches.
+.gitleaks-report.json
+
+# Claude session history (local only)
+.remember/

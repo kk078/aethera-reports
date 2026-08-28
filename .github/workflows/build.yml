@@ -1,0 +1,108 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # --- Job 1: fast checks on Linux (typecheck, unit tests, secret scan) ---
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  # --- Job 2: Windows installers (NSIS .exe + .msi), gated on job 1 ---
+  build-windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (typecheck + electron-vite build)
+        run: npm run build
+
+      # Unpacked build for the installer smoke test, run BEFORE producing
+      # the installers themselves — a broken native-module rebuild should
+      # fail fast here rather than surface only in a signed artifact.
+      - name: electron-builder --dir (unpacked, for smoke test)
+        run: npx electron-builder --win --dir --publish never
+
+      - name: Installer smoke test (--smoke)
+        shell: pwsh
+        run: |
+          $exe = "dist\win-unpacked\Aethera Reports.exe"
+          & $exe --smoke
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Smoke test failed with exit code $LASTEXITCODE"
+            exit 1
+          }
+          Write-Host "Smoke test passed."
+
+      - name: Build installers (nsis + msi)
+        run: npx electron-builder --win nsis msi --publish never
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: aethera-reports-windows-installers
+          path: |
+            dist/*.exe
+            dist/*.msi
+          if-no-files-found: error
+
+  # --- Tag push: draft a GitHub Release with the installers attached ---
+  release:
+    needs: build-windows
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: aethera-reports-windows-installers
+          path: dist
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            dist/*.exe
+            dist/*.msi

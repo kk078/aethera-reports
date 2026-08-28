@@ -1,0 +1,31 @@
+title = "Aethera Reports gitleaks config"
+
+# Extend gitleaks' default ruleset (generic API keys, cloud provider
+# credentials, private keys, common secret formats, etc.) rather than
+# redefining it from scratch.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Paths that are expected to contain fixtures/lockfiles, not secrets"
+paths = [
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)sample-data/.*''',
+  '''(^|/)test/.*fixtures?/.*''',
+]
+
+# Project-specific rules on top of the default set: catch obvious
+# accidental commits of local connector credentials or real PHI export
+# paths, even though these should never be in the repo per .gitignore.
+[[rules]]
+id = "aethera-connector-basic-auth-url"
+description = "URL with embedded basic-auth credentials (e.g. rcm-connector base URL misconfigured with creds inline)"
+regex = '''[a-zA-Z][a-zA-Z0-9+.-]*://[^/\s:@]+:[^/\s:@]+@[^\s'"]+'''
+tags = ["credentials", "aethera"]
+
+[[rules]]
+id = "aethera-raw-edi-extension"
+description = "Raw X12 835/837 file committed (should live in local-data/, never in the repo)"
+regex = '''(?i)\.(835|837)$'''
+path = '''.*\.(835|837)$'''
+tags = ["phi", "aethera"]

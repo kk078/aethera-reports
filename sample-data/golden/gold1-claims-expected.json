@@ -1,0 +1,30 @@
+{
+  "_comment": "Hand-computed expected buildClientReport() output for client GOLD1, period 2020-02. Seed data and the arithmetic behind every number here is documented in test/kpi-golden.test.ts and docs/kpi-parity.md. Period is deliberately far in the past so A/R aging bucketing (which depends on the wall-clock date the test runs) is permanently deterministic — see the comment in that test file.",
+  "client": { "code": "GOLD1", "name": "Golden Claims Client", "contract": "6% of collections" },
+  "period": { "start": "2020-02-01", "end": "2020-02-29" },
+  "source": "claims",
+  "volume": { "encountersReceived": 3, "claimsSubmitted": 3, "denialsReceived": 1 },
+  "financials": {
+    "grossCharges": 1800,
+    "insuranceCollections": 1000,
+    "patientCollections": 100,
+    "totalCollections": 1100,
+    "rcmFee": 66,
+    "netCollectionRatePct": 73.3
+  },
+  "kpis": {
+    "daysInAr": 12.1,
+    "openAr": 750,
+    "arOver90Pct": 100,
+    "chargeLagDaysAvg": 5.3,
+    "slaDaysToSubmit": 3,
+    "slaMetPct": 0,
+    "firstPassAcceptancePct": 66.7,
+    "denialRatePct": 33.3
+  },
+  "arAging": { "0-30": 0, "31-60": 0, "61-90": 0, "91-120": 0, "120+": 750 },
+  "kpiTrends": { "series": [], "latest": null, "deltas": {} },
+  "denialsByRootCause": { "CODING": 1 },
+  "claimsByStatus": { "Paid": 2, "Denied": 1 },
+  "payerMix": [{ "payerName": "Unknown", "charges": 1800 }]
+}

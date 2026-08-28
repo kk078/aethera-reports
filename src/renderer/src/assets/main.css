@@ -1,0 +1,203 @@
+@import './base.css';
+
+body {
+  user-select: none;
+}
+
+#root {
+  height: 100vh;
+}
+
+.app-shell {
+  display: flex;
+  height: 100vh;
+}
+
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--color-background-soft);
+  border-right: 1px solid var(--ev-c-gray-3);
+  padding: 16px 0;
+  overflow-y: auto;
+}
+
+.sidebar-brand {
+  font-weight: 700;
+  font-size: 15px;
+  padding: 0 20px 16px;
+  color: var(--ev-c-text-1);
+}
+
+.sidebar ul {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar a {
+  display: block;
+  padding: 10px 20px;
+  color: var(--ev-c-text-2);
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.sidebar a:hover {
+  background: var(--color-background-mute);
+  color: var(--ev-c-text-1);
+}
+
+.sidebar a.active {
+  color: var(--ev-c-text-1);
+  background: var(--ev-c-gray-3);
+  border-left: 3px solid #7c93ee;
+}
+
+.app-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px;
+}
+
+.screen-placeholder h1 {
+  font-size: 22px;
+  margin-bottom: 8px;
+  color: var(--ev-c-text-1);
+}
+
+.screen-placeholder h2 {
+  font-size: 16px;
+  margin: 24px 0 8px;
+  color: var(--ev-c-text-1);
+}
+
+.screen-placeholder p {
+  color: var(--ev-c-text-2);
+  font-size: 14px;
+}
+
+.screen-placeholder button {
+  margin-top: 8px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--ev-c-gray-2);
+  background: var(--ev-c-gray-3);
+  color: var(--ev-c-text-1);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.screen-placeholder button:hover {
+  background: var(--ev-c-gray-2);
+}
+
+.screen-placeholder button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.form-error {
+  color: #f28b82;
+}
+
+.form-success {
+  color: #81c995;
+}
+
+.client-form,
+.manual-entry-controls,
+.wizard-step {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 520px;
+  margin-bottom: 24px;
+}
+
+.manual-entry-controls {
+  flex-direction: row;
+  align-items: flex-end;
+  max-width: none;
+}
+
+.client-form label,
+.manual-entry-controls label,
+.wizard-step label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ev-c-text-2);
+}
+
+.client-form input,
+.client-form textarea,
+.client-form select,
+.manual-entry-controls input,
+.manual-entry-controls select,
+.wizard-step input,
+.wizard-step select,
+.wizard-step textarea {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--ev-c-gray-2);
+  background: var(--color-background-mute);
+  color: var(--ev-c-text-1);
+  font-size: 14px;
+}
+
+.client-form fieldset {
+  border: 1px solid var(--ev-c-gray-3);
+  border-radius: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px;
+}
+
+.client-form legend {
+  color: var(--ev-c-text-2);
+  font-size: 12px;
+  padding: 0 6px;
+}
+
+.data-table {
+  width: 100%;
+  max-width: 900px;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--ev-c-gray-3);
+  color: var(--ev-c-text-2);
+}
+
+.data-table th {
+  color: var(--ev-c-text-1);
+  font-weight: 600;
+}
+
+.jobs-list-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wizard {
+  border: 1px solid var(--ev-c-gray-3);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+  max-width: 900px;
+}
+
+.mapping-builder {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}

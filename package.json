@@ -1,0 +1,72 @@
+{
+  "name": "aethera-reports",
+  "version": "0.1.0",
+  "description": "Local-first RCM client reporting & analytics desktop app (Electron + DuckDB).",
+  "main": "./out/main/index.js",
+  "license": "Apache-2.0",
+  "author": "Aethera Healthcare",
+  "homepage": "https://github.com/kk078/aethera-reports#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kk078/aethera-reports.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kk078/aethera-reports/issues"
+  },
+  "scripts": {
+    "format": "prettier --write .",
+    "lint": "eslint --cache .",
+    "lint:secrets": "bash scripts/lint-secrets.sh",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "electron-vite preview",
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "postinstall": "electron-builder install-app-deps",
+    "build:unpack": "npm run build && electron-builder --dir",
+    "build:win": "npm run build && electron-builder --win nsis msi",
+    "build:mac": "electron-vite build && electron-builder --mac",
+    "build:linux": "electron-vite build && electron-builder --linux",
+    "e2e:import-check": "vite-node scripts/e2e-import-check.ts",
+    "crosscheck:rcm": "vite-node scripts/crosscheck-rcm.ts",
+    "cli": "vite-node src/main/cli-entry.ts --"
+  },
+  "dependencies": {
+    "@duckdb/node-api": "1.5.5-r.4",
+    "@electron-toolkit/utils": "^4.0.0",
+    "better-sqlite3": "13.0.3",
+    "echarts": "^6.1.0",
+    "exceljs": "^4.4.0",
+    "papaparse": "^5.7.0",
+    "react-router-dom": "^7.18.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@electron-toolkit/eslint-config-prettier": "^3.0.0",
+    "@electron-toolkit/eslint-config-ts": "^3.1.0",
+    "@electron-toolkit/tsconfig": "^2.0.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.19.1",
+    "@types/papaparse": "^5.5.2",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "electron": "39.8.10",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^5.0.0",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "prettier": "^3.7.4",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.6",
+    "vite-node": "^6.0.0",
+    "vitest": "^4.1.11"
+  }
+}

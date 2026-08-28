@@ -1,0 +1,51 @@
+{
+  "_comment": "Expected buildClientReport() output for client GOLD3, period 2020-04, which has NEITHER claim-level data NOR a monthly_summaries row. This is the NULL-vs-0 assertion the plan calls for: an empty month must produce nulls for every rate/average field, not zeros \u2014 the one deliberate exception being arOver90Pct, which is a verbatim-ported quirk from production.py line 199 (0, not null, when openAr is 0).",
+  "client": {
+    "code": "GOLD3",
+    "name": "Golden Empty Client",
+    "contract": "no contract on file"
+  },
+  "period": {
+    "start": "2020-04-01",
+    "end": "2020-04-30"
+  },
+  "source": "claims",
+  "volume": {
+    "encountersReceived": 0,
+    "claimsSubmitted": 0,
+    "denialsReceived": 0
+  },
+  "financials": {
+    "grossCharges": 0,
+    "insuranceCollections": 0,
+    "patientCollections": 0,
+    "totalCollections": 0,
+    "rcmFee": 0,
+    "netCollectionRatePct": null
+  },
+  "kpis": {
+    "daysInAr": null,
+    "openAr": 0,
+    "arOver90Pct": 0,
+    "chargeLagDaysAvg": null,
+    "slaDaysToSubmit": 7,
+    "slaMetPct": null,
+    "firstPassAcceptancePct": null,
+    "denialRatePct": null
+  },
+  "arAging": {
+    "0-30": 0,
+    "31-60": 0,
+    "61-90": 0,
+    "91-120": 0,
+    "120+": 0
+  },
+  "kpiTrends": {
+    "series": [],
+    "latest": null,
+    "deltas": {}
+  },
+  "denialsByRootCause": {},
+  "claimsByStatus": {},
+  "payerMix": []
+}

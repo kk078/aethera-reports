@@ -1,0 +1,6 @@
+Patient Account Number,Claim Number,Date of Service,Payer Name,Rendering Provider NPI,Claim Status,Procedure Code,Units,Charge Amount,Allowed Amount,Paid Amount,Patient Responsibility,Patient Paid,Adjustment Amount,Denial Code,Denial Reason
+DEMO1-PT-9000,DEMO1-CLM-9001,2026-04-05,Aetna PPO,1234567891,Paid,99213,1,$150.00,$120.00,$110.00,$10.00,$10.00,$5.00,,
+DEMO1-PT-9001,,2026-04-06,Aetna PPO,1234567891,Paid,99213,1,$150.00,$120.00,$110.00,$10.00,$10.00,$5.00,,
+DEMO1-PT-9002,DEMO1-CLM-9003,not-a-date,Aetna PPO,1234567891,Paid,99213,1,$150.00,$120.00,$110.00,$10.00,$10.00,$5.00,,
+DEMO1-PT-9003,DEMO1-CLM-9004,2026-04-08,Aetna PPO,1234567891,Paid,99213,1,not-a-number,$120.00,$110.00,$10.00,$10.00,$5.00,,
+DEMO1-PT-9004,DEMO1-CLM-9005,2026-04-09,Aetna PPO,1234567891,Paid,99213,1,$180.00,$140.00,$130.00,$8.00,$8.00,$4.00,,

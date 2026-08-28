@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Aethera Reports pre-commit hook: block commits that gitleaks flags.
+#
+# This hook is authored but NOT installed automatically — a fresh clone
+# has no .git directory for hook-copying tooling to target at scaffold
+# time, and we don't want to silently rewrite a contributor's git config.
+# To enable it once you've run `git init` / cloned the repo:
+#
+#   git config core.hooksPath scripts/git-hooks
+#   chmod +x scripts/git-hooks/pre-commit
+#
+# Requires gitleaks (https://github.com/gitleaks/gitleaks) on PATH.
+
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "warning: gitleaks not found on PATH — skipping secret scan." >&2
+  echo "         install it (see README/CONTRIBUTING) to enable this check." >&2
+  exit 0
+fi
+
+echo "Running gitleaks secret scan on staged changes..."
+if ! gitleaks protect --staged --config .gitleaks.toml --verbose; then
+  echo "" >&2
+  echo "gitleaks found a potential secret in your staged changes." >&2
+  echo "Fix or explicitly allowlist it in .gitleaks.toml, then retry." >&2
+  exit 1
+fi
