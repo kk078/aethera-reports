@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { ClientReport } from '../../../shared/domain'
+import type { ClientReport, ExportFormat } from '../../../shared/domain'
 import {
-  generateClientReportPdfBatch,
+  generateClientReportBatch,
   getClientFinancialTrend,
   getPortfolioReports,
   listClients
 } from '../lib/api'
 import Sparkline from '../components/charts/Sparkline'
+
+const ALL_FORMATS: ExportFormat[] = ['pdf', 'pptx', 'xlsx']
 
 function currentMonthValue(): string {
   const now = new Date()
@@ -36,6 +38,7 @@ function Portfolio(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [batchRunning, setBatchRunning] = useState(false)
   const [batchLog, setBatchLog] = useState<string[]>([])
+  const [formats, setFormats] = useState<Set<ExportFormat>>(new Set(['pdf']))
 
   useEffect(() => {
     setLoading(true)
@@ -60,14 +63,20 @@ function Portfolio(): React.JSX.Element {
   }, [period])
 
   async function handleBatchExport(): Promise<void> {
-    if (selected.size === 0) return
+    if (selected.size === 0 || formats.size === 0) return
     setBatchRunning(true)
     setBatchLog([])
     try {
-      const results = await generateClientReportPdfBatch(Array.from(selected), period)
+      const results = await generateClientReportBatch(
+        Array.from(selected),
+        period,
+        Array.from(formats)
+      )
       setBatchLog(
         results.map((r) =>
-          r.error ? `${r.clientCode}: FAILED — ${r.error}` : `${r.clientCode}: ${r.filePath}`
+          r.error
+            ? `${r.clientCode} (${r.format}): FAILED — ${r.error}`
+            : `${r.clientCode} (${r.format}): ${r.filePath}`
         )
       )
     } catch (err) {
@@ -75,6 +84,15 @@ function Portfolio(): React.JSX.Element {
     } finally {
       setBatchRunning(false)
     }
+  }
+
+  function toggleFormat(format: ExportFormat): void {
+    setFormats((prev) => {
+      const next = new Set(prev)
+      if (next.has(format)) next.delete(format)
+      else next.add(format)
+      return next
+    })
   }
 
   function toggleSelected(clientId: number): void {
@@ -96,9 +114,21 @@ function Portfolio(): React.JSX.Element {
           Period
           <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
         </label>
+        <span className="format-checkboxes">
+          {ALL_FORMATS.map((format) => (
+            <label key={format}>
+              <input
+                type="checkbox"
+                checked={formats.has(format)}
+                onChange={() => toggleFormat(format)}
+              />
+              {format.toUpperCase()}
+            </label>
+          ))}
+        </span>
         <button
           type="button"
-          disabled={selected.size === 0 || batchRunning}
+          disabled={selected.size === 0 || formats.size === 0 || batchRunning}
           onClick={() => void handleBatchExport()}
         >
           {batchRunning ? 'Exporting…' : `Export ${selected.size || ''} selected`}

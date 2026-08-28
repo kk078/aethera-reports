@@ -1,4 +1,5 @@
-import EChart from './EChart'
+import { forwardRef } from 'react'
+import EChart, { type EChartHandle } from './EChart'
 import { CATEGORICAL_PALETTE, CHART_GRID_LINE, CHART_TEXT_SECONDARY } from './theme'
 import type { EChartsOption } from 'echarts'
 
@@ -20,12 +21,10 @@ export interface TrendBarChartProps {
  * in the fixed palette order (dataviz skill: never a dual axis, color
  * follows the entity).
  */
-function TrendBarChart({
-  categories,
-  series,
-  animation = true,
-  valueFormatter
-}: TrendBarChartProps): React.JSX.Element {
+const TrendBarChart = forwardRef<EChartHandle, TrendBarChartProps>(function TrendBarChart(
+  { categories, series, animation = true, valueFormatter },
+  ref
+) {
   const option: EChartsOption = {
     color: [...CATEGORICAL_PALETTE],
     textStyle: { color: CHART_TEXT_SECONDARY },
@@ -56,7 +55,7 @@ function TrendBarChart({
     }))
   }
 
-  return <EChart option={option} animation={animation} />
-}
+  return <EChart ref={ref} option={option} animation={animation} />
+})
 
 export default TrendBarChart

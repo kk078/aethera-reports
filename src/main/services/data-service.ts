@@ -10,22 +10,30 @@
  * ESLint rule in `eslint.config.mjs`).
  */
 import type {
+  ArAgingByClientRow,
   BackupStatus,
   Branding,
   BrandingInput,
   Client,
   ClientPatch,
   ClientReport,
+  DaysInArTrendPoint,
+  DenialListRow,
   ImportFileKind,
   ImportJob,
   MappingTemplate,
+  MonthlyRateTrendPoint,
   MonthlySummary,
   MonthlySummaryInput,
   NewClientInput,
   NewMappingTemplateInput,
+  PayerAnalysisRow,
+  PayerMixTrendPoint,
+  PayerVsPatientSplit,
   QuarantineRow,
   RunCsvImportInput,
   RunX12ImportInput,
+  TopAgedClaimRow,
   X12ParseSummary
 } from '../../shared/domain'
 
@@ -58,6 +66,28 @@ export interface IDataService {
   // --- Manual entry ---
   upsertMonthlySummary(input: MonthlySummaryInput): Promise<MonthlySummary>
   getMonthlySummary(clientId: number, periodMonth: string): Promise<MonthlySummary | null>
+
+  // --- Denials / A/R / Payers analytics screens (plan §5, Phase 2 chunk B) ---
+  listDenials(clientId: number | null, periodMonth: string): Promise<DenialListRow[]>
+  getDenialRateTrend(
+    clientId: number | null,
+    endPeriodMonth: string,
+    monthsBack?: number
+  ): Promise<MonthlyRateTrendPoint[]>
+  getArAgingByClient(): Promise<ArAgingByClientRow[]>
+  getArPayerVsPatientSplit(clientId: number | null): Promise<PayerVsPatientSplit>
+  getTopAgedClaims(clientId: number | null, limit?: number): Promise<TopAgedClaimRow[]>
+  getDaysInArTrend(
+    clientId: number | null,
+    endPeriodMonth: string,
+    monthsBack?: number
+  ): Promise<DaysInArTrendPoint[]>
+  getPayerAnalysis(clientId: number | null, periodMonth: string): Promise<PayerAnalysisRow[]>
+  getPayerMixTrend(
+    clientId: number | null,
+    endPeriodMonth: string,
+    monthsBack?: number
+  ): Promise<PayerMixTrendPoint[]>
 
   // --- KPI engine / reports (plan §4) ---
   buildClientReport(clientId: number, periodMonth: string): Promise<ClientReport>

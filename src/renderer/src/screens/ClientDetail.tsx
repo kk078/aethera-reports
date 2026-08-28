@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import type { Branding, ClientReport } from '../../../shared/domain'
+import type { Branding, ClientReport, ExportFormat } from '../../../shared/domain'
 import {
-  generateClientReportPdf,
+  generateClientReport,
   getBranding,
   getClientFinancialTrend,
   getClientReport,
   listClients
 } from '../lib/api'
 import ReportDocument, { type FinancialTrendPoint } from '../report-doc/ReportDocument'
+
+const ALL_FORMATS: ExportFormat[] = ['pdf', 'pptx', 'xlsx']
 
 function currentMonthValue(): string {
   const now = new Date()
@@ -30,6 +32,7 @@ function ClientDetail(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [exportMessage, setExportMessage] = useState<string | null>(null)
+  const [formats, setFormats] = useState<Set<ExportFormat>>(new Set(['pdf']))
 
   useEffect(() => {
     listClients().then((all) => {
@@ -59,14 +62,25 @@ function ClientDetail(): React.JSX.Element {
       .finally(() => setLoading(false))
   }, [clientId, period])
 
+  function toggleFormat(format: ExportFormat): void {
+    setFormats((prev) => {
+      const next = new Set(prev)
+      if (next.has(format)) next.delete(format)
+      else next.add(format)
+      return next
+    })
+  }
+
   async function handleExport(): Promise<void> {
-    if (!clientId) return
+    if (!clientId || formats.size === 0) return
     setExporting(true)
     setExportMessage(null)
     try {
-      const result = await generateClientReportPdf(clientId, period)
+      const results = await generateClientReport(clientId, period, Array.from(formats))
       setExportMessage(
-        result.error ? `Export failed: ${result.error}` : `Saved to ${result.filePath}`
+        results
+          .map((r) => (r.error ? `${r.format}: FAILED — ${r.error}` : `${r.format}: ${r.filePath}`))
+          .join(' | ')
       )
     } catch (err) {
       setExportMessage(String(err))
@@ -97,8 +111,24 @@ function ClientDetail(): React.JSX.Element {
           Period
           <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
         </label>
-        <button type="button" disabled={!clientId || exporting} onClick={() => void handleExport()}>
-          {exporting ? 'Exporting…' : 'Export PDF'}
+        <span className="format-checkboxes">
+          {ALL_FORMATS.map((format) => (
+            <label key={format}>
+              <input
+                type="checkbox"
+                checked={formats.has(format)}
+                onChange={() => toggleFormat(format)}
+              />
+              {format.toUpperCase()}
+            </label>
+          ))}
+        </span>
+        <button
+          type="button"
+          disabled={!clientId || exporting || formats.size === 0}
+          onClick={() => void handleExport()}
+        >
+          {exporting ? 'Exporting…' : 'Export'}
         </button>
       </div>
       {exportMessage && <p>{exportMessage}</p>}

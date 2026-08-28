@@ -350,6 +350,108 @@ export const buildClientReportInputSchema = z.object({
 export type BuildClientReportInput = z.infer<typeof buildClientReportInputSchema>
 
 // ---------------------------------------------------------------------
+// Denials / A/R / Payers analytics screens (plan §5, Phase 2 chunk B).
+// Every query behind these types is scoped by a NULLABLE clientId —
+// `null` means "all active clients", the default these screens open
+// with — unlike `buildClientReportInputSchema` above, which is always
+// exactly one client.
+// ---------------------------------------------------------------------
+
+const nullableClientIdSchema = z.number().int().positive().nullable()
+
+export const analyticsScopeInputSchema = z.object({
+  clientId: nullableClientIdSchema,
+  periodMonth: z.string().regex(/^\d{4}-\d{2}$/)
+})
+export type AnalyticsScopeInput = z.infer<typeof analyticsScopeInputSchema>
+
+export const analyticsTrendInputSchema = z.object({
+  clientId: nullableClientIdSchema,
+  endPeriodMonth: z.string().regex(/^\d{4}-\d{2}$/),
+  monthsBack: z.number().int().positive().max(24).optional()
+})
+export type AnalyticsTrendInput = z.infer<typeof analyticsTrendInputSchema>
+
+export const denialListRowSchema = z.object({
+  denialId: z.number().int().positive(),
+  clientCode: z.string(),
+  claimNumber: z.string().nullable(),
+  externalRef: z.string().nullable(),
+  dos: z.string().nullable(),
+  payerName: z.string(),
+  carcCode: z.string().nullable(),
+  rarcCode: z.string().nullable(),
+  category: z.string(),
+  rootCauseStage: z.string().nullable(),
+  description: z.string().nullable(),
+  recoveredAmount: z.number().nullable(),
+  createdAt: z.string(),
+  resolvedAt: z.string().nullable()
+})
+export type DenialListRow = z.infer<typeof denialListRowSchema>
+
+export const monthlyRateTrendPointSchema = z.object({
+  month: z.string(),
+  /** NULL-not-zero: no submitted claims that month, not "0% denied". */
+  ratePct: z.number().nullable()
+})
+export type MonthlyRateTrendPoint = z.infer<typeof monthlyRateTrendPointSchema>
+
+export const arAgingByClientRowSchema = z.object({
+  clientCode: z.string(),
+  aging: arAgingBucketsSchema
+})
+export type ArAgingByClientRow = z.infer<typeof arAgingByClientRowSchema>
+
+export const payerVsPatientSplitSchema = z.object({
+  insurancePortion: z.number(),
+  patientPortion: z.number()
+})
+export type PayerVsPatientSplit = z.infer<typeof payerVsPatientSplitSchema>
+
+export const topAgedClaimRowSchema = z.object({
+  clientCode: z.string(),
+  claimNumber: z.string().nullable(),
+  externalRef: z.string().nullable(),
+  payerName: z.string(),
+  dos: z.string().nullable(),
+  amount: z.number(),
+  daysOpen: z.number()
+})
+export type TopAgedClaimRow = z.infer<typeof topAgedClaimRowSchema>
+
+export const daysInArTrendPointSchema = z.object({
+  month: z.string(),
+  daysInAr: z.number().nullable()
+})
+export type DaysInArTrendPoint = z.infer<typeof daysInArTrendPointSchema>
+
+export const payerAnalysisRowSchema = z.object({
+  payerName: z.string(),
+  claimsCount: z.number().int().nonnegative(),
+  totalCharge: z.number(),
+  totalAllowed: z.number(),
+  avgCharge: z.number(),
+  avgAllowed: z.number(),
+  denialCount: z.number().int().nonnegative(),
+  denialRatePct: z.number().nullable(),
+  /** NULL when this payer has zero remittances in scope — "insufficient data", never a fabricated lag. */
+  avgLagDays: z.number().nullable(),
+  lagSampleCount: z.number().int().nonnegative()
+})
+export type PayerAnalysisRow = z.infer<typeof payerAnalysisRowSchema>
+
+export const payerMixTrendPointSchema = z.object({
+  month: z.string(),
+  payerName: z.string(),
+  charges: z.number()
+})
+export type PayerMixTrendPoint = z.infer<typeof payerMixTrendPointSchema>
+
+export const listDenialsInputSchema = analyticsScopeInputSchema
+export type ListDenialsInput = AnalyticsScopeInput
+
+// ---------------------------------------------------------------------
 // Branding (plan §6) — committed defaults are neutral; a firm's real
 // branding lives in local, uncommitted config (SECURITY.md / CONTRIBUTING.md).
 // ---------------------------------------------------------------------
@@ -379,26 +481,35 @@ export const brandingInputSchema = z.object({
 export type BrandingInput = z.infer<typeof brandingInputSchema>
 
 // ---------------------------------------------------------------------
-// PDF export / batch export (plan §6)
+// Export engine — PDF/PPTX/XLSX, single + batch (plan §6, Phase 2 chunk B)
 // ---------------------------------------------------------------------
 
-export const exportClientPdfInputSchema = z.object({
-  clientId: z.number().int().positive(),
-  periodMonth: z.string().regex(/^\d{4}-\d{2}$/)
-})
-export type ExportClientPdfInput = z.infer<typeof exportClientPdfInputSchema>
+export const exportFormatSchema = z.enum(['pdf', 'pptx', 'xlsx'])
+export type ExportFormat = z.infer<typeof exportFormatSchema>
 
 export const exportResultSchema = z.object({
   clientCode: z.string(),
   periodMonth: z.string(),
+  format: exportFormatSchema,
   filePath: z.string().nullable(),
   error: z.string().nullable()
 })
 export type ExportResult = z.infer<typeof exportResultSchema>
 
+export const exportClientReportInputSchema = z.object({
+  clientId: z.number().int().positive(),
+  periodMonth: z.string().regex(/^\d{4}-\d{2}$/),
+  formats: z.array(exportFormatSchema).min(1)
+})
+export type ExportClientReportInput = z.infer<typeof exportClientReportInputSchema>
+
+export const exportReportResultSchema = z.object({ results: z.array(exportResultSchema) })
+export type ExportReportResult = z.infer<typeof exportReportResultSchema>
+
 export const batchExportInputSchema = z.object({
   clientIds: z.array(z.number().int().positive()).min(1),
-  periodMonth: z.string().regex(/^\d{4}-\d{2}$/)
+  periodMonth: z.string().regex(/^\d{4}-\d{2}$/),
+  formats: z.array(exportFormatSchema).min(1)
 })
 export type BatchExportInput = z.infer<typeof batchExportInputSchema>
 

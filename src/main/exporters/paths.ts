@@ -15,3 +15,11 @@ export function reportOutputDir(periodMonth: string, clientCode: string): string
 export function reportPdfPath(periodMonth: string, clientCode: string): string {
   return join(reportOutputDir(periodMonth, clientCode), `${clientCode}-${periodMonth}.pdf`)
 }
+
+export function reportPptxPath(periodMonth: string, clientCode: string): string {
+  return join(reportOutputDir(periodMonth, clientCode), `${clientCode}-${periodMonth}.pptx`)
+}
+
+export function reportXlsxPath(periodMonth: string, clientCode: string): string {
+  return join(reportOutputDir(periodMonth, clientCode), `${clientCode}-${periodMonth}.xlsx`)
+}

@@ -14,6 +14,9 @@
  */
 import { z } from 'zod'
 import {
+  analyticsScopeInputSchema,
+  analyticsTrendInputSchema,
+  arAgingByClientRowSchema,
   backupStatusSchema,
   batchExportInputSchema,
   batchExportResultSchema,
@@ -23,19 +26,27 @@ import {
   clientPatchSchema,
   clientReportSchema,
   clientSchema,
-  exportClientPdfInputSchema,
-  exportResultSchema,
+  daysInArTrendPointSchema,
+  denialListRowSchema,
+  exportClientReportInputSchema,
+  exportReportResultSchema,
   getMonthlySummaryInputSchema,
   importFileKindSchema,
   importJobSchema,
+  listDenialsInputSchema,
   mappingTemplateSchema,
+  monthlyRateTrendPointSchema,
   monthlySummaryInputSchema,
   monthlySummarySchema,
   newClientInputSchema,
   newMappingTemplateInputSchema,
+  payerAnalysisRowSchema,
+  payerMixTrendPointSchema,
+  payerVsPatientSplitSchema,
   quarantineRowSchema,
   runCsvImportInputSchema,
   runX12ImportInputSchema,
+  topAgedClaimRowSchema,
   x12ParseSummarySchema
 } from './domain'
 
@@ -239,14 +250,55 @@ export const ipcContract = {
     response: brandingSchema
   },
 
-  // --- PDF export / batch (plan §6) ---
-  'reports:printReady': {
+  // --- Denials / A/R / Payers analytics screens (plan §5, Phase 2 chunk B) ---
+  'analytics:listDenials': {
+    request: listDenialsInputSchema,
+    response: z.object({ rows: z.array(denialListRowSchema) })
+  },
+  'analytics:denialRateTrend': {
+    request: analyticsTrendInputSchema,
+    response: z.object({ points: z.array(monthlyRateTrendPointSchema) })
+  },
+  'analytics:arAgingByClient': {
     request: emptyRequestSchema,
+    response: z.object({ rows: z.array(arAgingByClientRowSchema) })
+  },
+  'analytics:arPayerVsPatientSplit': {
+    request: z.object({ clientId: z.number().int().positive().nullable() }),
+    response: payerVsPatientSplitSchema
+  },
+  'analytics:topAgedClaims': {
+    request: z.object({
+      clientId: z.number().int().positive().nullable(),
+      limit: z.number().int().positive().max(200).optional()
+    }),
+    response: z.object({ rows: z.array(topAgedClaimRowSchema) })
+  },
+  'analytics:daysInArTrend': {
+    request: analyticsTrendInputSchema,
+    response: z.object({ points: z.array(daysInArTrendPointSchema) })
+  },
+  'analytics:payerAnalysis': {
+    request: analyticsScopeInputSchema,
+    response: z.object({ rows: z.array(payerAnalysisRowSchema) })
+  },
+  'analytics:payerMixTrend': {
+    request: analyticsTrendInputSchema,
+    response: z.object({ points: z.array(payerMixTrendPointSchema) })
+  },
+
+  // --- Export engine: PDF/PPTX/XLSX, single + batch (plan §6, Phase 2 chunk B) ---
+  'reports:printReady': {
+    // The print route sends back each chart's captured PNG (data URI),
+    // keyed by chart name, once ECharts has painted (plan §6) — the PDF
+    // path ignores this payload (printToPDF screenshots the whole page),
+    // the PPTX exporter uses it to place chart images on slides.
+    request: z.object({ chartImages: z.record(z.string(), z.string()).default({}) }),
     response: z.object({ ok: z.boolean() })
   },
-  'exports:generatePdf': {
-    request: exportClientPdfInputSchema,
-    response: exportResultSchema
+  'exports:generateReport': {
+    request: exportClientReportInputSchema,
+    response: exportReportResultSchema
   },
   'exports:generateBatch': {
     request: batchExportInputSchema,

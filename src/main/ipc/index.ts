@@ -7,6 +7,7 @@ import { registerBackupsHandlers } from './backups'
 import { registerReportsHandlers } from './reports'
 import { registerBrandingHandlers } from './branding'
 import { registerExportsHandlers } from './exports'
+import { registerAnalyticsHandlers } from './analytics'
 import { registerPrintReadyHandler } from '../exporters/print-ready'
 import type { IDataService } from '../services/data-service'
 
@@ -20,5 +21,6 @@ export function registerIpcHandlers(dataService: IDataService): void {
   registerReportsHandlers(dataService)
   registerBrandingHandlers(dataService)
   registerExportsHandlers(dataService)
+  registerAnalyticsHandlers(dataService)
   registerPrintReadyHandler()
 }

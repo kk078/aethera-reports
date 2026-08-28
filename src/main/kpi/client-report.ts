@@ -15,10 +15,9 @@ import type { DuckDBConnection } from '@duckdb/node-api'
 import { kpiSql } from './sql'
 import { ratePercent, round2 } from './rate'
 import { buildKpiTrends } from './kpi-trends'
+import { EMPTY_AGING, bucketForDays, openClaimAmount } from './aging'
 import { daysBetween, daysBetweenInclusive, monthPeriod, todayUtcIso } from '../../shared/periods'
 import type { ArAgingBuckets, ClientReport } from '../../shared/domain'
-
-const EMPTY_AGING: ArAgingBuckets = { '0-30': 0, '31-60': 0, '61-90': 0, '91-120': 0, '120+': 0 }
 
 interface ClientRow {
   clientId: number
@@ -91,21 +90,11 @@ function computeAging(rows: AgingRow[], nowIso: string): { openAr: number; aging
     const balance = num(row.balance)
     const patientResponsibility = num(row.patient_responsibility)
     const patientPaid = num(row.patient_paid)
-    const amount = balance + Math.max(patientResponsibility - patientPaid, 0)
+    const amount = openClaimAmount(balance, patientResponsibility, patientPaid)
     openAr += amount
 
     const days = daysBetween(anchorIso(row.anchor), nowIso)
-    const bucket: keyof ArAgingBuckets =
-      days <= 30
-        ? '0-30'
-        : days <= 60
-          ? '31-60'
-          : days <= 90
-            ? '61-90'
-            : days <= 120
-              ? '91-120'
-              : '120+'
-    aging[bucket] += amount
+    aging[bucketForDays(days)] += amount
   }
 
   const roundedAging: ArAgingBuckets = {

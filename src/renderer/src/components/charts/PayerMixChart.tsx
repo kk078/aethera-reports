@@ -1,4 +1,5 @@
-import EChart from './EChart'
+import { forwardRef } from 'react'
+import EChart, { type EChartHandle } from './EChart'
 import { CATEGORICAL_PALETTE, CHART_GRID_LINE, CHART_TEXT_SECONDARY } from './theme'
 import type { EChartsOption } from 'echarts'
 
@@ -8,7 +9,10 @@ export interface PayerMixChartProps {
 }
 
 /** Horizontal bar of charges by payer — a comparison task, so bars rather than a pie (choosing-a-form). */
-function PayerMixChart({ payerMix, animation = true }: PayerMixChartProps): React.JSX.Element {
+const PayerMixChart = forwardRef<EChartHandle, PayerMixChartProps>(function PayerMixChart(
+  { payerMix, animation = true },
+  ref
+) {
   if (payerMix.length === 0) {
     return <p style={{ color: 'var(--ev-c-text-2)', fontSize: 13 }}>No claims in this period.</p>
   }
@@ -50,7 +54,14 @@ function PayerMixChart({ payerMix, animation = true }: PayerMixChartProps): Reac
     ]
   }
 
-  return <EChart option={option} animation={animation} height={Math.max(160, sorted.length * 36)} />
-}
+  return (
+    <EChart
+      ref={ref}
+      option={option}
+      animation={animation}
+      height={Math.max(160, sorted.length * 36)}
+    />
+  )
+})
 
 export default PayerMixChart

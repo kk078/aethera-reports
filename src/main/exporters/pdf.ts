@@ -31,7 +31,7 @@ export async function renderClientReportPdfBuffer(
   try {
     const readyPromise = waitForPrintReady(win.webContents.id)
     await loadRenderer(win, `/print/${clientId}/${periodMonth}`)
-    await readyPromise
+    await readyPromise // chart-image map is PPTX-only (pptx.ts) — printToPDF screenshots the whole page instead
     const pdfBuffer = await win.webContents.printToPDF({
       pageSize: 'Letter',
       printBackground: true,
@@ -55,7 +55,13 @@ export async function exportClientReportPdf(
   })()
 
   if (!client) {
-    return { clientCode: `#${clientId}`, periodMonth, filePath: null, error: 'Client not found' }
+    return {
+      clientCode: `#${clientId}`,
+      periodMonth,
+      format: 'pdf',
+      filePath: null,
+      error: 'Client not found'
+    }
   }
 
   try {
@@ -68,9 +74,9 @@ export async function exportClientReportPdf(
       periodMonth,
       filePath
     })
-    return { clientCode: client.code, periodMonth, filePath, error: null }
+    return { clientCode: client.code, periodMonth, format: 'pdf', filePath, error: null }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    return { clientCode: client.code, periodMonth, filePath: null, error: message }
+    return { clientCode: client.code, periodMonth, format: 'pdf', filePath: null, error: message }
   }
 }

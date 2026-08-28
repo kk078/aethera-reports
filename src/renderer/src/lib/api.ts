@@ -4,22 +4,31 @@
  * that keeps the IPC channel names in exactly one place.
  */
 import type {
+  ArAgingByClientRow,
   Branding,
   BrandingInput,
   Client,
   ClientPatch,
   ClientReport,
+  DaysInArTrendPoint,
+  DenialListRow,
+  ExportFormat,
   ExportResult,
   ImportFileKind,
   ImportJob,
   MappingTemplate,
+  MonthlyRateTrendPoint,
   MonthlySummary,
   MonthlySummaryInput,
   NewClientInput,
   NewMappingTemplateInput,
+  PayerAnalysisRow,
+  PayerMixTrendPoint,
+  PayerVsPatientSplit,
   QuarantineRow,
   RunCsvImportInput,
   RunX12ImportInput,
+  TopAgedClaimRow,
   X12ParseSummary,
   BackupStatus
 } from '../../../shared/domain'
@@ -170,6 +179,80 @@ export async function getClientFinancialTrend(
   return points
 }
 
+// --- Denials / A/R / Payers analytics screens ---
+
+export async function listDenials(
+  clientId: number | null,
+  periodMonth: string
+): Promise<DenialListRow[]> {
+  const { rows } = await window.aethera.invoke('analytics:listDenials', { clientId, periodMonth })
+  return rows
+}
+
+export async function getDenialRateTrend(
+  clientId: number | null,
+  endPeriodMonth: string,
+  monthsBack?: number
+): Promise<MonthlyRateTrendPoint[]> {
+  const { points } = await window.aethera.invoke('analytics:denialRateTrend', {
+    clientId,
+    endPeriodMonth,
+    monthsBack
+  })
+  return points
+}
+
+export async function getArAgingByClient(): Promise<ArAgingByClientRow[]> {
+  const { rows } = await window.aethera.invoke('analytics:arAgingByClient', {})
+  return rows
+}
+
+export function getArPayerVsPatientSplit(clientId: number | null): Promise<PayerVsPatientSplit> {
+  return window.aethera.invoke('analytics:arPayerVsPatientSplit', { clientId })
+}
+
+export async function getTopAgedClaims(
+  clientId: number | null,
+  limit?: number
+): Promise<TopAgedClaimRow[]> {
+  const { rows } = await window.aethera.invoke('analytics:topAgedClaims', { clientId, limit })
+  return rows
+}
+
+export async function getDaysInArTrend(
+  clientId: number | null,
+  endPeriodMonth: string,
+  monthsBack?: number
+): Promise<DaysInArTrendPoint[]> {
+  const { points } = await window.aethera.invoke('analytics:daysInArTrend', {
+    clientId,
+    endPeriodMonth,
+    monthsBack
+  })
+  return points
+}
+
+export async function getPayerAnalysis(
+  clientId: number | null,
+  periodMonth: string
+): Promise<PayerAnalysisRow[]> {
+  const { rows } = await window.aethera.invoke('analytics:payerAnalysis', { clientId, periodMonth })
+  return rows
+}
+
+export async function getPayerMixTrend(
+  clientId: number | null,
+  endPeriodMonth: string,
+  monthsBack?: number
+): Promise<PayerMixTrendPoint[]> {
+  const { points } = await window.aethera.invoke('analytics:payerMixTrend', {
+    clientId,
+    endPeriodMonth,
+    monthsBack
+  })
+  return points
+}
+
 // --- Backups ---
 
 export function getBackupStatus(): Promise<BackupStatus> {
@@ -198,28 +281,39 @@ export function pickAndSetBrandingLogo(): Promise<Branding> {
   return window.aethera.invoke('branding:pickAndSetLogo', {})
 }
 
-// --- PDF export ---
+// --- Export engine: PDF/PPTX/XLSX, single + batch (plan §6, Phase 2 chunk B) ---
 
-export function generateClientReportPdf(
+export async function generateClientReport(
   clientId: number,
-  periodMonth: string
-): Promise<ExportResult> {
-  return window.aethera.invoke('exports:generatePdf', { clientId, periodMonth })
+  periodMonth: string,
+  formats: ExportFormat[]
+): Promise<ExportResult[]> {
+  const { results } = await window.aethera.invoke('exports:generateReport', {
+    clientId,
+    periodMonth,
+    formats
+  })
+  return results
 }
 
-export async function generateClientReportPdfBatch(
+export async function generateClientReportBatch(
   clientIds: number[],
-  periodMonth: string
+  periodMonth: string,
+  formats: ExportFormat[]
 ): Promise<ExportResult[]> {
   const { results } = await window.aethera.invoke('exports:generateBatch', {
     clientIds,
-    periodMonth
+    periodMonth,
+    formats
   })
   return results
 }
 
 // --- Print route internal signal ---
 
-export function signalPrintReady(): Promise<{ ok: boolean }> {
-  return window.aethera.invoke('reports:printReady', {})
+/** `chartImages`: each rendered chart's captured PNG data URI, keyed by chart name (plan §6 PPTX). */
+export function signalPrintReady(
+  chartImages: Record<string, string> = {}
+): Promise<{ ok: boolean }> {
+  return window.aethera.invoke('reports:printReady', { chartImages })
 }

@@ -9,6 +9,16 @@ import denialsByRootCause from './denials-by-root-cause.sql?raw'
 import firstPassClaims from './first-pass-claims.sql?raw'
 import kpiSnapshotSeries from './kpi-snapshot-series.sql?raw'
 import payerMix from './payer-mix.sql?raw'
+// Cross-client analytics screens (plan §5, Phase 2 chunk B) — every
+// query below is scoped by a NULLABLE client_id ("all active clients"
+// when NULL), unlike the single-client-only queries above.
+import denialsList from './denials-list.sql?raw'
+import denialRateTrendInputs from './denial-rate-trend-inputs.sql?raw'
+import openClaimsAgingDetail from './open-claims-aging-detail.sql?raw'
+import createdClaimsScoped from './created-claims-scoped.sql?raw'
+import openClaimsAsOfDate from './open-claims-as-of-date.sql?raw'
+import payerMixScoped from './payer-mix-scoped.sql?raw'
+import payerAnalysis from './payer-analysis.sql?raw'
 
 export const kpiSql = {
   createdClaims,
@@ -21,5 +31,12 @@ export const kpiSql = {
   denialsByRootCause,
   firstPassClaims,
   kpiSnapshotSeries,
-  payerMix
+  payerMix,
+  denialsList,
+  denialRateTrendInputs,
+  openClaimsAgingDetail,
+  createdClaimsScoped,
+  openClaimsAsOfDate,
+  payerMixScoped,
+  payerAnalysis
 } as const

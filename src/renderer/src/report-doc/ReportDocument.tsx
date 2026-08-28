@@ -1,10 +1,12 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import type { Branding, ClientReport } from '../../../shared/domain'
 import KpiScorecard from './KpiScorecard'
 import TrendBarChart from '../components/charts/TrendBarChart'
 import ArAgingChart from '../components/charts/ArAgingChart'
 import DenialsParetoChart from '../components/charts/DenialsParetoChart'
 import PayerMixChart from '../components/charts/PayerMixChart'
+import type { EChartHandle } from '../components/charts/EChart'
+import { CHART_SURFACE } from '../components/charts/theme'
 import { signalPrintReady } from '../lib/api'
 import './report-document.css'
 
@@ -40,10 +42,28 @@ function ReportDocument({
   trend = [],
   mode = 'interactive'
 }: ReportDocumentProps): React.JSX.Element {
+  const trendChartRef = useRef<EChartHandle>(null)
+  const arAgingChartRef = useRef<EChartHandle>(null)
+  const denialsChartRef = useRef<EChartHandle>(null)
+  const payerMixChartRef = useRef<EChartHandle>(null)
+
   useEffect(() => {
     if (mode !== 'print') return undefined
     const timer = setTimeout(() => {
-      void signalPrintReady()
+      // Chart images (plan §6 PPTX): captured here, unconditionally,
+      // whether the ultimate export is a PDF (which ignores them) or a
+      // PPTX (which places them on slides) — one signal, one code path,
+      // rather than branching this component on the export target.
+      const chartImages: Record<string, string> = {}
+      const capture = (name: string, ref: React.RefObject<EChartHandle | null>): void => {
+        const dataUrl = ref.current?.getDataURL(CHART_SURFACE)
+        if (dataUrl) chartImages[name] = dataUrl
+      }
+      capture('trend', trendChartRef)
+      capture('arAging', arAgingChartRef)
+      capture('denialsByRootCause', denialsChartRef)
+      capture('payerMix', payerMixChartRef)
+      void signalPrintReady(chartImages)
     }, 400)
     return () => clearTimeout(timer)
   }, [mode])
@@ -91,6 +111,7 @@ function ReportDocument({
         <h2>Charges vs. collections (trailing months)</h2>
         {trend.length > 0 ? (
           <TrendBarChart
+            ref={trendChartRef}
             categories={trend.map((t) => t.month)}
             series={[
               { name: 'Gross charges', values: trend.map((t) => t.grossCharges) },
@@ -106,17 +127,21 @@ function ReportDocument({
 
       <section className="report-doc-section">
         <h2>A/R aging</h2>
-        <ArAgingChart aging={report.arAging} animation={animation} />
+        <ArAgingChart ref={arAgingChartRef} aging={report.arAging} animation={animation} />
       </section>
 
       <section className="report-doc-section report-doc-page-break">
         <h2>Denials by root cause</h2>
-        <DenialsParetoChart denialsByRootCause={report.denialsByRootCause} animation={animation} />
+        <DenialsParetoChart
+          ref={denialsChartRef}
+          denialsByRootCause={report.denialsByRootCause}
+          animation={animation}
+        />
       </section>
 
       <section className="report-doc-section">
         <h2>Payer mix</h2>
-        <PayerMixChart payerMix={report.payerMix} animation={animation} />
+        <PayerMixChart ref={payerMixChartRef} payerMix={report.payerMix} animation={animation} />
       </section>
 
       <footer className="report-doc-footer">

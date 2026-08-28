@@ -17,24 +17,37 @@
  */
 import { readdirSync, statSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
-import { exportClientReportPdfBatch } from './exporters/batch'
+import { exportClientReportBatch } from './exporters/batch'
+import { exportFormatSchema } from '../shared/domain'
+import type { ExportFormat } from '../shared/domain'
 import type { IDataService } from './services/data-service'
 import type { GenerateArgs, ImportArgs, ParsedCliArgs } from './cli-args'
 
 export type CliLogger = (line: string) => void
+
+function partitionFormats(requested: string[]): { valid: ExportFormat[]; invalid: string[] } {
+  const valid: ExportFormat[] = []
+  const invalid: string[] = []
+  for (const raw of requested) {
+    const parsed = exportFormatSchema.safeParse(raw)
+    if (parsed.success) valid.push(parsed.data)
+    else invalid.push(raw)
+  }
+  return { valid, invalid }
+}
 
 async function runGenerate(
   dataService: IDataService,
   args: GenerateArgs,
   log: CliLogger
 ): Promise<number> {
-  if (!args.formats.includes('pdf')) {
-    log('No supported export format requested — Phase 1 only implements --formats pdf.')
-    return 1
+  const { valid: formats, invalid } = partitionFormats(args.formats)
+  if (invalid.length > 0) {
+    log(`Ignoring unknown format(s): ${invalid.join(', ')} (supported: pdf, pptx, xlsx)`)
   }
-  const unsupported = args.formats.filter((f) => f !== 'pdf')
-  if (unsupported.length > 0) {
-    log(`Ignoring unimplemented format(s) (Phase 2): ${unsupported.join(', ')}`)
+  if (formats.length === 0) {
+    log('No supported export format requested — use --formats pdf,pptx,xlsx (any combination).')
+    return 1
   }
 
   const clients = await dataService.listClients()
@@ -48,15 +61,20 @@ async function runGenerate(
     return 1
   }
 
-  log(`Generating ${targets.length} report(s) for period ${args.period}...`)
-  const results = await exportClientReportPdfBatch(
+  log(
+    `Generating ${targets.length} report(s) x ${formats.length} format(s) for period ${args.period}...`
+  )
+  const results = await exportClientReportBatch(
     dataService,
     targets.map((c) => c.clientId),
     args.period,
-    (completed, total, result) => {
-      log(
-        `[${completed}/${total}] ${result.clientCode}: ${result.error ? `FAILED — ${result.error}` : result.filePath}`
-      )
+    formats,
+    (completed, total, clientResults) => {
+      for (const result of clientResults) {
+        log(
+          `[${completed}/${total}] ${result.clientCode} (${result.format}): ${result.error ? `FAILED — ${result.error}` : result.filePath}`
+        )
+      }
     }
   )
 

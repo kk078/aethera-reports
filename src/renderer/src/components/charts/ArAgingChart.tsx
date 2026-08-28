@@ -1,4 +1,5 @@
-import EChart from './EChart'
+import { forwardRef } from 'react'
+import EChart, { type EChartHandle } from './EChart'
 import { CATEGORICAL_PALETTE, CHART_GRID_LINE, CHART_TEXT_SECONDARY } from './theme'
 import type { ArAgingBuckets } from '../../../../shared/domain'
 import type { EChartsOption } from 'echarts'
@@ -11,7 +12,10 @@ export interface ArAgingChartProps {
 const BUCKET_ORDER: Array<keyof ArAgingBuckets> = ['0-30', '31-60', '61-90', '91-120', '120+']
 
 /** A/R aging waterfall — single series, single axis, one bar per bucket. */
-function ArAgingChart({ aging, animation = true }: ArAgingChartProps): React.JSX.Element {
+const ArAgingChart = forwardRef<EChartHandle, ArAgingChartProps>(function ArAgingChart(
+  { aging, animation = true },
+  ref
+) {
   const option: EChartsOption = {
     color: [CATEGORICAL_PALETTE[0]],
     textStyle: { color: CHART_TEXT_SECONDARY },
@@ -47,7 +51,7 @@ function ArAgingChart({ aging, animation = true }: ArAgingChartProps): React.JSX
     ]
   }
 
-  return <EChart option={option} animation={animation} height={260} />
-}
+  return <EChart ref={ref} option={option} animation={animation} height={260} />
+})
 
 export default ArAgingChart

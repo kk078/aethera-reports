@@ -31,6 +31,7 @@
     "build:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux",
     "e2e:import-check": "vite-node scripts/e2e-import-check.ts",
+    "e2e:generate-check": "vite-node scripts/e2e-generate-check.ts",
     "crosscheck:rcm": "vite-node scripts/crosscheck-rcm.ts",
     "cli": "vite-node src/main/cli-entry.ts --"
   },
@@ -41,6 +42,7 @@
     "echarts": "^6.1.0",
     "exceljs": "^4.4.0",
     "papaparse": "^5.7.0",
+    "pptxgenjs": "^4.0.1",
     "react-router-dom": "^7.18.2",
     "zod": "^4.4.3"
   },
@@ -61,6 +63,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
+    "jszip": "^3.10.1",
     "prettier": "^3.7.4",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",

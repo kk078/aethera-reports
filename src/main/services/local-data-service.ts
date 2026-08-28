@@ -28,6 +28,7 @@ import { parse837 } from '../importers/x12/parse837'
 import { run835Import, run837Import } from '../importers/x12/run-x12-import'
 import { buildClientReport as buildClientReportFn } from '../kpi/client-report'
 import { buildFinancialTrend } from '../kpi/trend'
+import * as analytics from '../kpi/analytics'
 import type { IDataService } from './data-service'
 import {
   backupStatusSchema,
@@ -45,22 +46,30 @@ import {
   runCsvImportInputSchema,
   runX12ImportInputSchema,
   x12ParseSummarySchema,
+  type ArAgingByClientRow,
   type BackupStatus,
   type Branding,
   type BrandingInput,
   type Client,
   type ClientPatch,
   type ClientReport,
+  type DaysInArTrendPoint,
+  type DenialListRow,
   type ImportFileKind,
   type ImportJob,
   type MappingTemplate,
+  type MonthlyRateTrendPoint,
   type MonthlySummary,
   type MonthlySummaryInput,
   type NewClientInput,
   type NewMappingTemplateInput,
+  type PayerAnalysisRow,
+  type PayerMixTrendPoint,
+  type PayerVsPatientSplit,
   type QuarantineRow,
   type RunCsvImportInput,
   type RunX12ImportInput,
+  type TopAgedClaimRow,
   type X12ParseSummary
 } from '../../shared/domain'
 
@@ -766,6 +775,57 @@ export class LocalDataService implements IDataService {
         `INSERT INTO export_audit_log (action, client_code, period_month, file_path) VALUES (?, ?, ?, ?)`
       )
       .run(entry.action, entry.clientCode, entry.periodMonth, entry.filePath)
+  }
+
+  // -------------------------------------------------------------------
+  // Denials / A/R / Payers analytics screens (plan §5, Phase 2 chunk B)
+  // -------------------------------------------------------------------
+
+  async listDenials(clientId: number | null, periodMonth: string): Promise<DenialListRow[]> {
+    return analytics.listDenials(this.duckdb.connection, clientId, periodMonth)
+  }
+
+  async getDenialRateTrend(
+    clientId: number | null,
+    endPeriodMonth: string,
+    monthsBack?: number
+  ): Promise<MonthlyRateTrendPoint[]> {
+    return analytics.denialRateTrend(this.duckdb.connection, clientId, endPeriodMonth, monthsBack)
+  }
+
+  async getArAgingByClient(): Promise<ArAgingByClientRow[]> {
+    return analytics.arAgingByClient(this.duckdb.connection)
+  }
+
+  async getArPayerVsPatientSplit(clientId: number | null): Promise<PayerVsPatientSplit> {
+    return analytics.arPayerVsPatientSplit(this.duckdb.connection, clientId)
+  }
+
+  async getTopAgedClaims(clientId: number | null, limit?: number): Promise<TopAgedClaimRow[]> {
+    return analytics.topAgedClaims(this.duckdb.connection, clientId, limit)
+  }
+
+  async getDaysInArTrend(
+    clientId: number | null,
+    endPeriodMonth: string,
+    monthsBack?: number
+  ): Promise<DaysInArTrendPoint[]> {
+    return analytics.daysInArTrend(this.duckdb.connection, clientId, endPeriodMonth, monthsBack)
+  }
+
+  async getPayerAnalysis(
+    clientId: number | null,
+    periodMonth: string
+  ): Promise<PayerAnalysisRow[]> {
+    return analytics.payerAnalysis(this.duckdb.connection, clientId, periodMonth)
+  }
+
+  async getPayerMixTrend(
+    clientId: number | null,
+    endPeriodMonth: string,
+    monthsBack?: number
+  ): Promise<PayerMixTrendPoint[]> {
+    return analytics.payerMixTrend(this.duckdb.connection, clientId, endPeriodMonth, monthsBack)
   }
 
   // -------------------------------------------------------------------
