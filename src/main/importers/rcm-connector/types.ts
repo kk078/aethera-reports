@@ -70,3 +70,55 @@ export interface RcmConnectorConfig {
   /** ms before an HTTP call is aborted — the connector must never hang app startup or a Sync-now click indefinitely. */
   timeoutMs?: number
 }
+
+// ---------------------------------------------------------------------
+// Claim-level sync (837 submission batches + claim/denial enrichment) —
+// see docs/connectors.md "Claim-level sync" section. These mirror
+// rcm-prototype's `/api/clients`, `/api/batches`, and `/api/claims`
+// verbatim; like the summary-sync shapes above, this is the documented
+// *reference implementation's* wire shape, not a hardcoded dependency.
+// ---------------------------------------------------------------------
+
+/** `GET /api/clients` row — only the fields the connector actually reads; the platform's response carries many more. */
+export interface RcmPlatformClientRow {
+  id: number
+  code: string
+  name: string
+}
+
+/** `GET /api/batches` row (`SubmissionBatch` in rcm-prototype). `status` is a free-text field there ('OPEN' | 'SUBMITTED' | 'ACKNOWLEDGED' in the reference implementation) — the connector only special-cases 'OPEN' (still being assembled, not yet final). */
+export interface RcmBatchRow {
+  id: number
+  batch_number: string
+  client_id: number
+  status: string
+  claims: number
+  total_charge: number
+  clearinghouse_ref?: string
+  created_at: string
+}
+
+export interface RcmClaimLineRow {
+  line_number?: number
+  cpt_code?: string | null
+  /** e.g. `["CO-16", "PR-1"]` — group code + CARC hyphen-joined, the reference implementation's compact encoding of an X12 CAS adjustment (no separate amount per code). */
+  adjustment_codes?: string[]
+}
+
+/** `GET /api/claims` row (also what `GET /api/claims/{id}` returns) — the claim-detail/list shape the enrichment step reads. */
+export interface RcmClaimRow {
+  id: number
+  claim_number: string
+  client_id: number
+  batch_id?: number | null
+  status?: string | null
+  external_ref?: string | null
+  total_charge: number
+  total_allowed: number
+  total_paid: number
+  patient_responsibility: number
+  patient_paid: number
+  adjustments: number
+  balance: number
+  lines?: RcmClaimLineRow[]
+}

@@ -123,6 +123,7 @@ export interface IDataService {
     baseUrl: string
     username: string
     enabled: boolean
+    syncClaimLevel: boolean
     encryptedPassword?: EncryptedSecretInput
   }): Promise<ConnectorSettings>
   getEncryptedConnectorPassword(): Promise<EncryptedSecretInput | null>

@@ -5,8 +5,9 @@
  * backup, integrity check.
  */
 import { existsSync, mkdirSync, readdirSync, statSync, copyFileSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { readFile, mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { dirname, extname, join } from 'node:path'
+import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
 import { openDuckDb, type DuckDbHandle } from '../db/duckdb'
@@ -33,10 +34,21 @@ import {
   loginRcmPlatform,
   fetchRcmPortfolio,
   fetchRcmClientReport,
+  fetchRcmClients,
+  fetchRcmBatches,
+  fetchRcmBatchEdi837,
+  fetchAllRcmClaims,
   RcmConnectorError,
   findOrCreateClientForSync,
   upsertMonthlySummaryFromReport,
-  upsertKpiSnapshotFromReport
+  upsertKpiSnapshotFromReport,
+  findLocalClientIdByCode,
+  countApiSourcedClaims,
+  findApiClaimIdByIdentifier,
+  enrichClaimFromPlatform,
+  type RcmBatchRow,
+  type RcmConnectorConfig,
+  type RcmPlatformClientRow
 } from '../importers/rcm-connector'
 import {
   checkReferenceApiHealth,
@@ -55,6 +67,8 @@ import {
   brandingSchema,
   clientPatchSchema,
   clientSchema,
+  connectorBatchSyncResultSchema,
+  connectorClaimLevelSyncResultSchema,
   connectorSettingsSchema,
   connectorSyncResultSchema,
   connectorSyncStatusRowSchema,
@@ -85,6 +99,7 @@ import {
   type Client,
   type ClientPatch,
   type ClientReport,
+  type ConnectorClaimLevelSyncResult,
   type ConnectorSettings,
   type ConnectorSyncResult,
   type ConnectorSyncStatusRow,
@@ -896,7 +911,8 @@ export class LocalDataService implements IDataService {
         username: null,
         hasPassword: false,
         enabled: false,
-        passwordEncoding: null
+        passwordEncoding: null,
+        syncClaimLevel: true
       })
     }
     return connectorSettingsSchema.parse({
@@ -904,7 +920,14 @@ export class LocalDataService implements IDataService {
       username: (row.username as string | null) ?? null,
       hasPassword: Boolean(row.password_data),
       enabled: Boolean(row.enabled),
-      passwordEncoding: (row.password_encoding as 'safeStorage' | 'plaintext' | null) ?? null
+      passwordEncoding: (row.password_encoding as 'safeStorage' | 'plaintext' | null) ?? null,
+      // `sync_claim_level` predates the column existing at all in an
+      // older meta.db (`ensureColumn` backfills it as `1`/true on next
+      // open, but a row read between "table missing the column" and
+      // that backfill can't happen — `ensureColumn` always runs before
+      // any query does) — `?? true` is just the same "unset -> the
+      // documented default" fallback as every other nullable column here.
+      syncClaimLevel: row.sync_claim_level === undefined ? true : Boolean(row.sync_claim_level)
     })
   }
 
@@ -918,6 +941,7 @@ export class LocalDataService implements IDataService {
     baseUrl: string
     username: string
     enabled: boolean
+    syncClaimLevel: boolean
     encryptedPassword?: EncryptedSecretInput
   }): Promise<ConnectorSettings> {
     const existing = this.meta.prepare('SELECT * FROM connector_settings WHERE id = 1').get() as
@@ -931,14 +955,22 @@ export class LocalDataService implements IDataService {
 
     this.meta
       .prepare(
-        `INSERT INTO connector_settings (id, base_url, username, password_data, password_encoding, enabled, updated_at)
-         VALUES (1, ?, ?, ?, ?, ?, datetime('now'))
+        `INSERT INTO connector_settings (id, base_url, username, password_data, password_encoding, enabled, sync_claim_level, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?, ?, datetime('now'))
          ON CONFLICT (id) DO UPDATE SET
            base_url = excluded.base_url, username = excluded.username,
            password_data = excluded.password_data, password_encoding = excluded.password_encoding,
-           enabled = excluded.enabled, updated_at = excluded.updated_at`
+           enabled = excluded.enabled, sync_claim_level = excluded.sync_claim_level,
+           updated_at = excluded.updated_at`
       )
-      .run(input.baseUrl, input.username, passwordData, passwordEncoding, input.enabled ? 1 : 0)
+      .run(
+        input.baseUrl,
+        input.username,
+        passwordData,
+        passwordEncoding,
+        input.enabled ? 1 : 0,
+        input.syncClaimLevel ? 1 : 0
+      )
 
     return this.getConnectorSettings()
   }
@@ -987,12 +1019,284 @@ export class LocalDataService implements IDataService {
       .run(entry.clientCode, entry.periodMonth, entry.status, entry.error, entry.created ? 1 : 0)
   }
 
+  /** Claim-level sync's since-cursor (docs/connectors.md) — the highest platform `SubmissionBatch.id` successfully imported for this client so far. `null` if it's never run. */
+  private getLastBatchCursor(clientCode: string): number | null {
+    const row = this.meta
+      .prepare('SELECT last_batch_cursor FROM connector_sync_state WHERE client_code = ?')
+      .get(clientCode) as { last_batch_cursor: number | null } | undefined
+    return row?.last_batch_cursor ?? null
+  }
+
+  /**
+   * Advances the cursor. Uses `INSERT ... ON CONFLICT` (not a bare
+   * `UPDATE`) purely as a defensive fallback — in practice a
+   * `connector_sync_state` row for this client already exists by the
+   * time this runs (the summary-sync loop above always
+   * `upsertConnectorSyncState`s one first), but this makes the method
+   * correct even if a caller reordered that.
+   */
+  private setLastBatchCursor(clientCode: string, batchId: number): void {
+    this.meta
+      .prepare(
+        `INSERT INTO connector_sync_state (client_code, last_batch_cursor)
+         VALUES (?, ?)
+         ON CONFLICT (client_code) DO UPDATE SET last_batch_cursor = excluded.last_batch_cursor`
+      )
+      .run(clientCode, batchId)
+  }
+
+  /**
+   * The batch-import half of the claim-level sync (docs/connectors.md):
+   * for each client this cycle's summary sync touched, list its
+   * submission batches, download every new one's (`id` past this
+   * client's `last_batch_cursor`, `status !== 'OPEN'` — an open batch is
+   * still being assembled, not final) 837.edi to a scratch file, and run
+   * it through `run837Import` with `claimSource: 'api'`. `run837Import`'s
+   * own `file_sha256` dedup makes a re-synced batch a no-op — this method
+   * only needs to decide *which* batches are worth asking for.
+   *
+   * Batches are processed oldest-first per client, and **a batch's
+   * failure never stops the rest of that client's batches this cycle**
+   * (same "one bad item never blocks the others" philosophy as
+   * `run837Import`'s own row-level quarantine) — verified necessary
+   * against the live reference instance, not just theoretical: a real
+   * batch there returns `200` with an **empty** 837.edi body (its
+   * claim(s) no longer resolve — voided/reassigned after the batch was
+   * created), which `fetchRcmBatchEdi837` passes through as `''` rather
+   * than throwing (see its doc comment); this method treats that as
+   * "zero claims to import," a clean success, not a failure. For an
+   * actual failure (network error, genuinely malformed EDI), the cursor
+   * only advances to the highest batch id that succeeded *this cycle* —
+   * gaps are allowed (a failed batch doesn't have to be the strict next
+   * one after the cursor for a later batch to still count). This means a
+   * batch that keeps failing gets tried once more per sync only until a
+   * later batch for the same client succeeds, at which point the cursor
+   * passes it and it's not retried again — it still shows up in this
+   * cycle's `batches[]` with its error for a human to notice, but the
+   * alternative (block every later batch forever behind one permanently
+   * broken one) is worse, as the live check above demonstrated.
+   */
+  private async runClaimLevelBatchSync(
+    config: RcmConnectorConfig,
+    token: string,
+    platformClients: RcmPlatformClientRow[],
+    allBatches: RcmBatchRow[],
+    localClientCodes: string[]
+  ): Promise<ConnectorClaimLevelSyncResult['batches']> {
+    const platformIdByCode = new Map(platformClients.map((c) => [c.code, c.id]))
+    const results: ConnectorClaimLevelSyncResult['batches'] = []
+    const scratchDir = await mkdtemp(join(tmpdir(), 'aethera-connector-batches-'))
+
+    try {
+      for (const clientCode of localClientCodes) {
+        const platformId = platformIdByCode.get(clientCode)
+        if (platformId === undefined) continue // platform has no client matching this code — nothing to batch-sync
+        const localClientId = await findLocalClientIdByCode(this.duckdb.connection, clientCode)
+        if (localClientId === null) continue
+
+        const cursor = this.getLastBatchCursor(clientCode) ?? 0
+        const pending = allBatches
+          .filter((b) => b.client_id === platformId && b.status !== 'OPEN' && b.id > cursor)
+          .sort((a, b) => a.id - b.id)
+
+        for (const batch of pending) {
+          try {
+            const edi = await fetchRcmBatchEdi837(config, token, batch.id)
+
+            if (!edi.trim()) {
+              // A real, observed response — see fetchRcmBatchEdi837's doc
+              // comment. Nothing to import; still a success, still
+              // advances the cursor.
+              this.setLastBatchCursor(clientCode, batch.id)
+              results.push(
+                connectorBatchSyncResultSchema.parse({
+                  clientCode,
+                  batchId: batch.id,
+                  batchNumber: batch.batch_number,
+                  ok: true,
+                  claimsRead: 0,
+                  claimsLoaded: 0,
+                  claimsSkipped: 0,
+                  error: null
+                })
+              )
+              continue
+            }
+
+            const filePath = join(scratchDir, `batch-${batch.id}.837`)
+            await writeFile(filePath, edi, 'utf-8')
+            const importResult = await run837Import({
+              connection: this.duckdb.connection,
+              filePath,
+              clientCode,
+              claimSource: 'api'
+            })
+            await rm(filePath, { force: true })
+            this.setLastBatchCursor(clientCode, batch.id)
+            results.push(
+              connectorBatchSyncResultSchema.parse({
+                clientCode,
+                batchId: batch.id,
+                batchNumber: batch.batch_number,
+                ok: true,
+                claimsRead: importResult.rowsRead,
+                claimsLoaded: importResult.rowsLoaded,
+                claimsSkipped: importResult.rowsSkipped,
+                error: null
+              })
+            )
+          } catch (error) {
+            const message = error instanceof RcmConnectorError ? error.message : String(error)
+            results.push(
+              connectorBatchSyncResultSchema.parse({
+                clientCode,
+                batchId: batch.id,
+                batchNumber: batch.batch_number,
+                ok: false,
+                claimsRead: 0,
+                claimsLoaded: 0,
+                claimsSkipped: 0,
+                error: message
+              })
+            )
+            // Deliberately no `break`: one batch failing never blocks the
+            // rest of this client's pending batches (see doc comment
+            // above) — the cursor just doesn't advance past this one
+            // unless/until a later batch succeeds.
+          }
+        }
+      }
+    } finally {
+      await rm(scratchDir, { recursive: true, force: true })
+    }
+
+    return results
+  }
+
+  /**
+   * The enrichment half of the claim-level sync (docs/connectors.md):
+   * for every client that has at least one `source = 'api'` claim
+   * already (skipped entirely otherwise — no point paging its claims),
+   * pulls the full current `GET /api/claims` list and upserts
+   * paid/allowed/patient-responsibility/status + CARC denials onto the
+   * matching local rows. Runs independently of `runClaimLevelBatchSync`
+   * (same cycle, but not gated on it succeeding) — an older synced claim
+   * whose payer posted a new remittance on the platform side since the
+   * last sync needs re-enrichment even when no new batch showed up.
+   */
+  private async runClaimLevelEnrichment(
+    config: RcmConnectorConfig,
+    token: string,
+    platformClients: RcmPlatformClientRow[],
+    localClientCodes: string[]
+  ): Promise<ConnectorClaimLevelSyncResult['enrichment']> {
+    const platformIdByCode = new Map(platformClients.map((c) => [c.code, c.id]))
+    let claimsUpdated = 0
+    let denialsWritten = 0
+    const errors: { clientCode: string; error: string }[] = []
+
+    for (const clientCode of localClientCodes) {
+      const platformId = platformIdByCode.get(clientCode)
+      if (platformId === undefined) continue
+      const localClientId = await findLocalClientIdByCode(this.duckdb.connection, clientCode)
+      if (localClientId === null) continue
+      const apiClaimCount = await countApiSourcedClaims(this.duckdb.connection, localClientId)
+      if (apiClaimCount === 0) continue
+
+      try {
+        const claims = await fetchAllRcmClaims(config, token, platformId)
+        for (const claim of claims) {
+          const claimId = await findApiClaimIdByIdentifier(
+            this.duckdb.connection,
+            localClientId,
+            claim.claim_number ?? null,
+            claim.external_ref ?? null
+          )
+          if (claimId === null) continue
+          const { denialsWritten: written } = await enrichClaimFromPlatform(
+            this.duckdb.connection,
+            claimId,
+            claim
+          )
+          claimsUpdated += 1
+          denialsWritten += written
+        }
+      } catch (error) {
+        const message = error instanceof RcmConnectorError ? error.message : String(error)
+        errors.push({ clientCode, error: message })
+      }
+    }
+
+    return { claimsUpdated, denialsWritten, errors }
+  }
+
+  /**
+   * The claim-level sync's entry point — runs both halves above and
+   * folds their results together. Never throws: a platform that doesn't
+   * implement `/api/clients`/`/api/batches`/`/api/claims` at all (an
+   * older/minimal reference-contract implementation — these three
+   * endpoints are optional relative to the summary-sync contract, see
+   * docs/connectors.md) degrades to a clean `enrichment.errors` entry
+   * rather than aborting `runConnectorSync`.
+   */
+  private async runClaimLevelConnectorSync(
+    config: RcmConnectorConfig,
+    token: string,
+    localClientCodes: string[]
+  ): Promise<ConnectorClaimLevelSyncResult> {
+    let platformClients: RcmPlatformClientRow[]
+    let allBatches: RcmBatchRow[]
+    try {
+      ;[platformClients, allBatches] = await Promise.all([
+        fetchRcmClients(config, token),
+        fetchRcmBatches(config, token)
+      ])
+    } catch (error) {
+      const message = error instanceof RcmConnectorError ? error.message : String(error)
+      return connectorClaimLevelSyncResultSchema.parse({
+        enabled: true,
+        batches: [],
+        enrichment: {
+          claimsUpdated: 0,
+          denialsWritten: 0,
+          errors: [{ clientCode: '*', error: message }]
+        }
+      })
+    }
+
+    const batches = await this.runClaimLevelBatchSync(
+      config,
+      token,
+      platformClients,
+      allBatches,
+      localClientCodes
+    )
+    const enrichment = await this.runClaimLevelEnrichment(
+      config,
+      token,
+      platformClients,
+      localClientCodes
+    )
+
+    return connectorClaimLevelSyncResultSchema.parse({ enabled: true, batches, enrichment })
+  }
+
   /**
    * Pulls the portfolio list + each client's computed report for
    * `periodMonth`, upserting `monthly_summaries`/`kpi_snapshots` with
    * `source: 'synced'` (plan §3 bullet 3). Per-client failure isolation —
    * one client's report failing to fetch/parse never aborts the sync for
    * the rest, matching the batch-export queue's established pattern.
+   *
+   * Then, when the stored `connector_settings.syncClaimLevel` is on
+   * (default — see `mapConnectorSettingsRow`), runs the opt-in
+   * claim-level sync (docs/connectors.md) for the same set of clients:
+   * new submission batches -> `run837Import`, plus enrichment of
+   * previously-synced claims' paid/allowed/status/denials. This reads
+   * the setting itself rather than taking it as a parameter — same
+   * pattern as `enabled` never gating this method's summary half; the
+   * IPC/RPC layer already resolved `baseUrl`/`username`/`password` from
+   * the same settings row before calling in.
    */
   async runConnectorSync(
     baseUrl: string,
@@ -1064,7 +1368,20 @@ export class LocalDataService implements IDataService {
       }
     }
 
-    return connectorSyncResultSchema.parse({ periodMonth, results })
+    const settings = await this.getConnectorSettings()
+    const claimLevel = settings.syncClaimLevel
+      ? await this.runClaimLevelConnectorSync(
+          config,
+          token,
+          portfolio.clients.map((row) => row.client)
+        )
+      : connectorClaimLevelSyncResultSchema.parse({
+          enabled: false,
+          batches: [],
+          enrichment: { claimsUpdated: 0, denialsWritten: 0, errors: [] }
+        })
+
+    return connectorSyncResultSchema.parse({ periodMonth, results, claimLevel })
   }
 
   async listConnectorSyncStatus(): Promise<ConnectorSyncStatusRow[]> {
@@ -1077,6 +1394,7 @@ export class LocalDataService implements IDataService {
         lastSyncedPeriod: row.last_synced_period ?? null,
         lastSyncedAt: row.last_synced_at ?? null,
         lastStatus: row.last_status ?? null,
+        lastBatchCursor: (row.last_batch_cursor as number | null) ?? null,
         lastError: row.last_error ?? null,
         createdByConnector: Boolean(row.created_by_connector)
       })

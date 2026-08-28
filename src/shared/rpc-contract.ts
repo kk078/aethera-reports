@@ -255,6 +255,7 @@ export const rpcContract = {
       baseUrl: z.string().min(1),
       username: z.string().min(1),
       enabled: z.boolean(),
+      syncClaimLevel: z.boolean().default(true),
       /** Already-encrypted by the caller (desktop `credentials.ts`, or omitted to keep the currently stored password) — see the module doc. */
       encryptedPassword: encryptedSecretInputSchema.optional()
     }),

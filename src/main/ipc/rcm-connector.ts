@@ -24,6 +24,7 @@ export function registerRcmConnectorHandlers(dataService: IDataService): void {
       baseUrl: request.baseUrl,
       username: request.username,
       enabled: request.enabled,
+      syncClaimLevel: request.syncClaimLevel,
       encryptedPassword: request.password ? encryptCredential(request.password) : undefined
     })
     return parseIpcResponse('connector:saveSettings', settings)

@@ -583,7 +583,9 @@ export const connectorSettingsSchema = z.object({
   hasPassword: z.boolean(),
   enabled: z.boolean(),
   /** Whether the stored password used the OS-level `safeStorage` encryption or the documented plaintext fallback — Settings surfaces a warning for the latter. */
-  passwordEncoding: z.enum(['safeStorage', 'plaintext']).nullable()
+  passwordEncoding: z.enum(['safeStorage', 'plaintext']).nullable(),
+  /** Opt-in claim-level sync (submission batches -> `run837Import`, + claim/denial enrichment — docs/connectors.md "Claim-level sync"), on top of the always-on summary sync. Defaults `true`. */
+  syncClaimLevel: z.boolean().default(true)
 })
 export type ConnectorSettings = z.infer<typeof connectorSettingsSchema>
 
@@ -592,7 +594,8 @@ export const connectorSettingsInputSchema = z.object({
   username: z.string().min(1),
   /** Omit to keep the currently stored password unchanged (e.g. editing the base URL only). */
   password: z.string().min(1).optional(),
-  enabled: z.boolean()
+  enabled: z.boolean(),
+  syncClaimLevel: z.boolean().default(true)
 })
 export type ConnectorSettingsInput = z.infer<typeof connectorSettingsInputSchema>
 
@@ -610,9 +613,35 @@ export const connectorSyncClientResultSchema = z.object({
 })
 export type ConnectorSyncClientResult = z.infer<typeof connectorSyncClientResultSchema>
 
+/** One submission batch's 837.edi -> `run837Import` attempt (claim-level sync — docs/connectors.md). */
+export const connectorBatchSyncResultSchema = z.object({
+  clientCode: z.string(),
+  batchId: z.number(),
+  batchNumber: z.string(),
+  ok: z.boolean(),
+  claimsRead: z.number(),
+  claimsLoaded: z.number(),
+  claimsSkipped: z.number(),
+  error: z.string().nullable()
+})
+export type ConnectorBatchSyncResult = z.infer<typeof connectorBatchSyncResultSchema>
+
+/** Claim-level sync result (docs/connectors.md "Claim-level sync") — batch import + claim/denial enrichment, folded into every `runConnectorSync` call alongside the always-on summary sync. `enabled: false` (the `syncClaimLevel` setting off) short-circuits both halves to empty/zero. */
+export const connectorClaimLevelSyncResultSchema = z.object({
+  enabled: z.boolean(),
+  batches: z.array(connectorBatchSyncResultSchema),
+  enrichment: z.object({
+    claimsUpdated: z.number(),
+    denialsWritten: z.number(),
+    errors: z.array(z.object({ clientCode: z.string(), error: z.string() }))
+  })
+})
+export type ConnectorClaimLevelSyncResult = z.infer<typeof connectorClaimLevelSyncResultSchema>
+
 export const connectorSyncResultSchema = z.object({
   periodMonth: z.string(),
-  results: z.array(connectorSyncClientResultSchema)
+  results: z.array(connectorSyncClientResultSchema),
+  claimLevel: connectorClaimLevelSyncResultSchema
 })
 export type ConnectorSyncResult = z.infer<typeof connectorSyncResultSchema>
 
@@ -622,7 +651,9 @@ export const connectorSyncStatusRowSchema = z.object({
   lastSyncedAt: z.string().nullable(),
   lastStatus: z.string().nullable(),
   lastError: z.string().nullable(),
-  createdByConnector: z.boolean()
+  createdByConnector: z.boolean(),
+  /** Highest platform submission-batch id successfully imported via the claim-level sync — `null` if it's never run (or found nothing) for this client. */
+  lastBatchCursor: z.number().nullable()
 })
 export type ConnectorSyncStatusRow = z.infer<typeof connectorSyncStatusRowSchema>
 

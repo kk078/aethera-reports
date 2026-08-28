@@ -18,7 +18,10 @@
  *   UPDATE` — DuckDB's FK-constrained delete+reinsert implementation of
  *   that trips the moment a second line already references the claim;
  *   see that file's header comment for the full story). Provenance is
- *   `source: 'x12'` on every claim this path writes.
+ *   `source: 'x12'` on every claim this path writes by default — the RCM
+ *   Platform connector's claim-level sync passes `claimSource: 'api'`
+ *   (see `RunX12ImportInput`) to mark claims pulled from a platform
+ *   batch's 837.edi instead of a manual Imports Wizard upload.
  *
  * Client attribution for both is "the client picked in the wizard",
  * exactly like the CSV path — X12 files carry payer/provider identity
@@ -38,6 +41,18 @@ export interface RunX12ImportInput {
   connection: DuckDBConnection
   filePath: string
   clientCode: string
+  /**
+   * `claims.source` (and the natural-key namespace, see `hashing.ts`) for
+   * every claim this 837 run touches — defaults to `'x12'` (the Imports
+   * Wizard's manual-upload path). The RCM Platform connector's
+   * claim-level sync (`LocalDataService.runClaimLevelConnectorSync`)
+   * passes `'api'` here so claims it pulls via `GET
+   * {base}/api/batches/{id}/837.edi` carry the connector's provenance
+   * (plan's claim-level sync chunk) instead of masquerading as a manual
+   * X12 upload. Ignored by `run835Import` — remittances have no
+   * equivalent provenance split.
+   */
+  claimSource?: 'x12' | 'api'
 }
 
 export interface RunX12ImportResult {
@@ -398,6 +413,7 @@ async function upsertClaim837Shell(
     dos: string
     naturalKey: string
     importJobId: number
+    claimSource: 'x12' | 'api'
   }
 ): Promise<number> {
   const existing = await connection.runAndReadAll(
@@ -419,7 +435,7 @@ async function upsertClaim837Shell(
        client_id, provider_id, payer_id, patient_key, claim_number, dos,
        first_submitted_at, source, import_job_id, natural_key
      )
-     VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'x12', ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?)
      RETURNING claim_id`,
     [
       args.clientId,
@@ -428,6 +444,7 @@ async function upsertClaim837Shell(
       args.patientKey,
       args.claimNumber,
       args.dos,
+      args.claimSource,
       args.importJobId,
       args.naturalKey
     ]
@@ -465,6 +482,7 @@ export async function run837Import(input: RunX12ImportInput): Promise<RunX12Impo
 
   const clientId = await getClientId(input.connection, input.clientCode)
   const jobId = await insertImportJob(input.connection, { sourceType, fileName, fileSha256 })
+  const claimSource = input.claimSource ?? 'x12'
 
   let rowsLoaded = 0
   let rowsSkipped = 0
@@ -492,7 +510,7 @@ export async function run837Import(input: RunX12ImportInput): Promise<RunX12Impo
 
       const patientKey = hashPatientKey(patientKeyRaw, input.clientCode)
       const naturalKey = computeNaturalKey(
-        'x12',
+        claimSource,
         input.clientCode,
         claim.claimNumber,
         dos as string
@@ -514,7 +532,8 @@ export async function run837Import(input: RunX12ImportInput): Promise<RunX12Impo
         claimNumber: claim.claimNumber,
         dos: dos as string,
         naturalKey,
-        importJobId: jobId
+        importJobId: jobId,
+        claimSource
       })
 
       for (const line of claim.serviceLines) {

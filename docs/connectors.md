@@ -17,12 +17,15 @@ build your own compatible service against), not dependencies.
 Pulls a portfolio's computed monthly report numbers from an external RCM
 platform into `monthly_summaries`/`kpi_snapshots`, with provenance
 `synced` (as opposed to `claims` — imported claim-level data — or
-`manual` — the Manual Entry screen). It syncs **computed report JSON,
-not raw claims** — the contract below doesn't expose (or require) a
-claim-level data dump.
+`manual` — the Manual Entry screen). The always-on summary sync below
+syncs **computed report JSON, not raw claims**; an opt-in **claim-level
+sync** (its own section further down) additionally pulls real claim rows
+plus payment/denial detail, when the platform exposes the extra
+endpoints it needs.
 
 Configure in **Settings → RCM Platform connector**: base URL, username,
-password (encrypted at rest — see "Credential storage" below).
+password (encrypted at rest — see "Credential storage" below), and the
+claim-level sync toggle.
 
 ### Auth
 
@@ -152,17 +155,197 @@ is synced. This is a deliberate v1 scope decision, not an oversight —
 extending the sync to backfill a full snapshot history from that
 endpoint is a natural follow-up.
 
+### Claim-level sync
+
+Opt-in (`Settings → RCM Platform connector → "Sync claim-level detail
+(837 batches)"`, `connector_settings.syncClaimLevel`, **default on**),
+runs after the summary sync above, in the same `runConnectorSync` call.
+Where the summary sync only ever writes `monthly_summaries`/
+`kpi_snapshots`, this pulls real claim rows into `claims`/`claim_lines`
+(provenance `api`) and enriches them with payment/denial detail — the
+prerequisite for denial/AR/payer analytics (Denials screen, AR aging,
+payer mix) to work for a connector-synced client instead of only the
+summary-level KPI cards.
+
+It has two independent halves, both **optional relative to the
+summary-sync contract** — a platform that only implements
+`/api/auth/token` + `/api/reports/*` still works with this connector,
+just without claim-level detail (`GET /api/clients`/`/api/batches`
+unreachable degrades to a logged `enrichment.errors` entry, never an
+aborted sync — see `LocalDataService.runClaimLevelConnectorSync`).
+
+#### 1. Batch import
+
+```
+GET {base}/api/clients
+Authorization: Bearer <token>
+```
+
+```json
+[{ "id": 4, "code": "ACME", "name": "Acme Health Group", "...": "..." }]
+```
+
+Maps the platform's numeric `client_id` (the only client identifier
+`/api/batches` carries) back to `clients.code` — everything else in each
+row is ignored.
+
+```
+GET {base}/api/batches
+Authorization: Bearer <token>
+```
+
+```json
+[
+  {
+    "id": 6,
+    "batch_number": "BATCH20260828-ACME-006",
+    "client_id": 4,
+    "status": "SUBMITTED",
+    "claims": 4,
+    "total_charge": 750.0,
+    "clearinghouse_ref": "ACME-SYNCLEAR-0001",
+    "created_at": "2026-08-28T00:43:12.731685"
+  }
+]
+```
+
+No server-side filtering by client or "since" — the connector fetches
+the whole list and filters/paginates client-side against its own
+per-client cursor (below). Batches with `status: "OPEN"` (still being
+assembled — the reference implementation's `SubmissionBatch.status`
+values are `OPEN` / `SUBMITTED` / `ACKNOWLEDGED`) are skipped; only a
+closed/submitted batch's claim set is final.
+
+```
+GET {base}/api/batches/{batch_id}/837.edi
+Authorization: Bearer <token>
+```
+
+Returns `text/plain` — the whole batch as one real X12 837 file (not
+JSON, unlike every other endpoint here). A `200` with an **empty** body
+is a real response the live reference instance returns for a batch
+whose claim(s) no longer resolve (voided/reassigned after the batch was
+created, observed during this feature's live verification) — treated as
+"zero claims to import" (a clean success), never as malformed EDI.
+Otherwise, downloaded to a scratch temp file and run straight through
+the same `run837Import` the Imports Wizard's manual 837 upload uses,
+with `claimSource: 'api'` so every claim it writes gets `claims.source
+= 'api'` (the enum's third value, alongside `csv`/`x12`/`manual`)
+instead of `'x12'`. **`run837Import`'s existing `file_sha256` dedup
+makes re-fetching an already-imported batch a no-op** — nothing
+batch-specific was added to guard against that; a new/renamed sync
+simply re-downloads and re-hashes to the same result.
+
+**Since-cursor**: `connector_sync_state.last_batch_cursor` — the highest
+platform `SubmissionBatch.id` this client has successfully imported so
+far (mirrors `last_synced_period`/`last_synced_at`'s role for the
+summary sync; visible in Settings' per-client sync-status table).
+Batches are processed oldest-first per client; **one batch failing to
+download/parse never blocks the rest of that client's pending batches
+this cycle** (nor any other client — the same per-client failure
+isolation the summary sync already has, just at batch granularity) —
+verified necessary against the live instance, not just theoretical:
+stopping at the first failure meant a single permanently-empty batch
+blocked every later batch for that client forever. The cursor advances
+to the highest batch id that succeeded *this cycle*, gaps allowed — a
+batch that keeps failing is retried once more per sync only until a
+later batch for the same client succeeds, at which point it's not
+retried again (still visible in that cycle's result with its error, for
+a human to notice).
+
+#### 2. Claim/denial enrichment
+
+```
+GET {base}/api/claims?client_id=4&limit=200&offset=0
+Authorization: Bearer <token>
+```
+
+```json
+[
+  {
+    "id": 66,
+    "claim_number": "ACME-260828-00008",
+    "client_id": 4,
+    "status": "AR_FOLLOWUP",
+    "external_ref": "ACME-CLAIM-008",
+    "total_charge": 200.0,
+    "total_allowed": 92.0,
+    "total_paid": 60.0,
+    "patient_responsibility": 32.0,
+    "patient_paid": 0.0,
+    "adjustments": 108.0,
+    "balance": 0.0,
+    "lines": [{ "line_number": 1, "cpt_code": "99203", "adjustment_codes": ["CO-16"] }]
+  }
+]
+```
+
+**No `/api/*835*` or ERA/remittance-file endpoint exists in the
+reference implementation** — `GET /api/claims`'s list/detail shape
+already carries the claim's *current* paid/allowed/patient-responsibility
+/status plus each line's adjustment codes directly (no separate
+835-equivalent document to fetch), so enrichment reads this endpoint and
+upserts straight onto `claims`/`denials` itself rather than going
+through `run835Import` (which expects to parse an actual X12 835/ERA
+document — there is none to hand it here). If a future/other platform
+*does* expose an 835/ERA file per the contract, prefer routing it
+through `run835Import` instead — this endpoint-shape decision, not a
+hard requirement of the connector's design.
+
+Paginated (`limit`/`offset`, 200/page, capped at 500 pages per client per
+sync as a runaway-loop guard); fetched **only for clients that already
+have at least one `source = 'api'` claim** (a cheap local `COUNT(*)`
+first — a client claim-level-synced for the first time this cycle
+qualifies immediately, since its batch import above just wrote those
+rows). Each returned claim is matched back to a local row by
+`claim_number`/`external_ref`, **scoped to `source = 'api'`** — this
+deliberately never touches a CSV- or manually-X12-imported claim that
+happens to share a claim number, only ones this connector itself synced
+in.
+
+A match upserts:
+- `claims.total_allowed`/`total_paid`/`patient_responsibility`/
+  `patient_paid`/`adjustments`/`status` — a plain `SET` (the platform's
+  current absolute state), **not** the 835 import path's incremental
+  `total_paid = total_paid + remit_amount` — there's no remittance
+  *event* here to add, only "this is the claim's state as of now."
+  `balance` is recomputed the same way `run835Import` does
+  (`total_charge - total_paid - patient_paid`).
+- `denials` — every line's `adjustment_codes` (the reference
+  implementation's `"CO-16"`-style group-code-hyphen-CARC encoding,
+  split into `carc_code`/`category` exactly like `run-x12-import.ts`'s
+  835 path, `category` via the same CAS-group table, `root_cause_stage`
+  left `NULL` — matching that path's existing behavior verbatim, not a
+  new omission) — via a full delete-then-reinsert per claim, so
+  re-enrichment is idempotent without a dedicated dedup key. Known
+  tradeoff: this *would* clobber a denial posted against the same claim
+  by a manually-imported 835 file, an unlikely cross-channel mix this v1
+  doesn't guard against.
+
+### Provenance and the KPI fallback ladder
+
+`buildClientReport` (`kpi/client-report.ts`) already picks `source:
+'claims'` for a client the moment `claims` has *any* row for that
+`client_id` — regardless of which importer wrote it (`csv`/`x12`/`api`/
+`manual`) or which period. So a client whose claim-level sync has ever
+run switches that client's reports from the summary sync's `monthly_summaries`
+fallback to real claim-level computation for every period, not just the
+one just-synced — same "claims win when present" ladder semantics as
+CSV/X12 imports already have, unchanged by this feature (see
+`test/rcm-connector.test.ts`'s ladder-preference test).
+
 ### Reference implementation
 
 `rcm-prototype` — a FastAPI RCM back-office application used during this
 project's development — implements this exact contract at
-`/api/auth/token` and `/api/reports/*`; this document was written
-against its live behavior. It's referenced here purely as an example of
-a compatible service (it's not a public project and this app has no
-dependency on it): any platform that exposes the same three endpoints
-with the same shapes works with this connector, pointed at whatever base
-URL you configure (e.g. `http://127.0.0.1:8000` for a local instance —
-Settings has no notion of "the" RCM platform, only "a" base URL).
+`/api/auth/token`, `/api/reports/*`, `/api/clients`, `/api/batches`, and
+`/api/claims`; this document was written against its live behavior. It's
+referenced here purely as an example of a compatible service (it's not a
+public project and this app has no dependency on it): any platform that
+exposes the same endpoints with the same shapes works with this
+connector, pointed at whatever base URL you configure (e.g.
+`http://127.0.0.1:8000` for a local instance — Settings has no notion of
+"the" RCM platform, only "a" base URL).
 
 ### Credential storage
 

@@ -5,13 +5,19 @@
  * sync cursor/status tracking in SQLite is the orchestrator's job —
  * `LocalDataService.runConnectorSync`, which owns both DB handles).
  *
- * The connector syncs **computed report JSON, not raw claims** (plan §3
- * — rcm-prototype's public API doesn't expose a claim dump), so every
- * write here lands in `monthly_summaries`/`kpi_snapshots` with
- * `source: 'synced'` — never in `claims`/`claim_lines`.
+ * The summary sync pulls **computed report JSON, not raw claims**, so
+ * every write in that half of this file lands in
+ * `monthly_summaries`/`kpi_snapshots` with `source: 'synced'` — never in
+ * `claims`/`claim_lines`. The opt-in **claim-level sync** (see
+ * docs/connectors.md "Claim-level sync") is the exception: its batch
+ * import goes through `run837Import` (importers/x12) directly, giving
+ * `claims`/`claim_lines` rows `source: 'api'`; the claim-enrichment
+ * helpers below (the second half of this file) upsert onto those same
+ * `'api'`-sourced rows.
  */
 import type { DuckDBConnection } from '@duckdb/node-api'
-import type { RcmClientReportRaw, RcmPortfolioRow } from './types'
+import { CAS_GROUP_CATEGORY } from '../x12/common'
+import type { RcmClaimRow, RcmClientReportRaw, RcmPortfolioRow } from './types'
 
 export interface FindOrCreateClientResult {
   clientId: number
@@ -204,4 +210,124 @@ export async function upsertKpiSnapshotFromReport(
 /** Maps a portfolio row's client code/name — used to find-or-create clients before per-client sync (plan §3). */
 export function portfolioRowIdentity(row: RcmPortfolioRow): { code: string; name: string } {
   return { code: row.client, name: row.name }
+}
+
+// ---------------------------------------------------------------------
+// Claim-level sync (docs/connectors.md "Claim-level sync") — batch
+// import goes through `run837Import` directly (importers/x12), so
+// everything below is the enrichment half: matching a platform claim
+// back to the local row `run837Import` created, then upserting its
+// paid/allowed/patient-responsibility/status and CARC denials.
+// ---------------------------------------------------------------------
+
+/** Nullable variant of `run-x12-import.ts`'s `getClientId` — a platform client with no local match is skipped, not an error (its summary sync already logged whatever went wrong finding/creating it). */
+export async function findLocalClientIdByCode(
+  connection: DuckDBConnection,
+  code: string
+): Promise<number | null> {
+  const reader = await connection.runAndReadAll('SELECT client_id FROM clients WHERE code = ?', [
+    code
+  ])
+  const rows = reader.getRowObjectsJS()
+  return rows.length > 0 ? Number(rows[0].client_id) : null
+}
+
+/** Whether it's worth paging through this client's platform claims at all — skipped entirely (no HTTP calls) once this is 0. */
+export async function countApiSourcedClaims(
+  connection: DuckDBConnection,
+  clientId: number
+): Promise<number> {
+  const reader = await connection.runAndReadAll(
+    "SELECT COUNT(*) AS n FROM claims WHERE client_id = ? AND source = 'api'",
+    [clientId]
+  )
+  return Number(reader.getRowObjectsJS()[0].n)
+}
+
+/**
+ * Matches a platform claim back to the local row `run837Import` created
+ * for it — by `claim_number` or `external_ref`, same fields the 835 path
+ * matches on (`run-x12-import.ts`'s `findMatchingClaimId`). Scoped to
+ * `source = 'api'` deliberately: this enrichment step only ever touches
+ * claims *this* connector synced in, never a CSV/manually-X12-imported
+ * claim that happens to share a claim number.
+ */
+export async function findApiClaimIdByIdentifier(
+  connection: DuckDBConnection,
+  clientId: number,
+  claimNumber: string | null,
+  externalRef: string | null
+): Promise<number | null> {
+  if (!claimNumber && !externalRef) return null
+  const reader = await connection.runAndReadAll(
+    `SELECT claim_id FROM claims
+     WHERE client_id = ? AND source = 'api' AND (claim_number = ? OR external_ref = ?)
+     LIMIT 1`,
+    [clientId, claimNumber, externalRef]
+  )
+  const rows = reader.getRowObjectsJS()
+  return rows.length > 0 ? Number(rows[0].claim_id) : null
+}
+
+/** Splits the reference implementation's `"CO-16"` encoding into CAS group + CARC reason codes; a code with no group prefix (no `-`) is stored bare with an `'unclassified'` category, same fallback as an unrecognized group in `run-x12-import.ts`. */
+function splitAdjustmentCode(raw: string): { group: string | null; carc: string } {
+  const dash = raw.indexOf('-')
+  if (dash <= 0) return { group: null, carc: raw }
+  return { group: raw.slice(0, dash), carc: raw.slice(dash + 1) }
+}
+
+/**
+ * Upserts one enriched claim: absolute paid/allowed/patient-responsibility
+ * /status/adjustments (a full snapshot from the platform, so this
+ * `UPDATE ... SET` overwrites rather than the 835 path's incremental
+ * `total_paid = total_paid + remit_amount` — there's no prior-remittance
+ * amount to add to here, only "this is the claim's current state") plus
+ * a full replace of its `denials` rows (delete-then-reinsert from the
+ * latest CARC codes — makes re-enrichment idempotent the same way
+ * re-running `run837Import` against an unchanged file is, without a
+ * dedicated `file_sha256`-style guard for a JSON API response). Note:
+ * this *does* mean a denial posted by a manually-imported 835 file
+ * against an `'api'`-sourced claim would be overwritten by the next
+ * enrichment pass — an unlikely channel mix this v1 doesn't guard
+ * against (see docs/connectors.md).
+ */
+export async function enrichClaimFromPlatform(
+  connection: DuckDBConnection,
+  claimId: number,
+  claim: RcmClaimRow
+): Promise<{ denialsWritten: number }> {
+  const balance = claim.total_charge - claim.total_paid - claim.patient_paid
+  await connection.run(
+    `UPDATE claims SET
+       total_allowed = ?, total_paid = ?, patient_responsibility = ?, patient_paid = ?,
+       adjustments = ?, balance = ?, status = ?
+     WHERE claim_id = ?`,
+    [
+      claim.total_allowed,
+      claim.total_paid,
+      claim.patient_responsibility,
+      claim.patient_paid,
+      claim.adjustments,
+      balance,
+      claim.status ?? null,
+      claimId
+    ]
+  )
+
+  await connection.run('DELETE FROM denials WHERE claim_id = ?', [claimId])
+
+  let denialsWritten = 0
+  for (const line of claim.lines ?? []) {
+    for (const code of line.adjustment_codes ?? []) {
+      const { group, carc } = splitAdjustmentCode(code)
+      await connection.run('INSERT INTO denials (claim_id, carc_code, category) VALUES (?, ?, ?)', [
+        claimId,
+        carc,
+        group ? (CAS_GROUP_CATEGORY[group] ?? 'unclassified') : 'unclassified'
+      ])
+      denialsWritten += 1
+    }
+  }
+
+  return { denialsWritten }
 }

@@ -13,8 +13,11 @@
  */
 import type {
   RcmAuthTokenResponse,
+  RcmBatchRow,
+  RcmClaimRow,
   RcmClientReportRaw,
   RcmConnectorConfig,
+  RcmPlatformClientRow,
   RcmPortfolioResponse
 } from './types'
 
@@ -176,4 +179,115 @@ async function safeText(res: Response): Promise<string> {
   } catch {
     return ''
   }
+}
+
+// ---------------------------------------------------------------------
+// Claim-level sync (docs/connectors.md "Claim-level sync") — submission
+// batches (837.edi download -> run837Import) + claim/denial enrichment
+// (GET /api/claims -> upsert onto claims/denials). Opt-in, off the same
+// `RcmConnectorConfig`/token as the summary sync above.
+// ---------------------------------------------------------------------
+
+/** `GET {base}/api/clients` — id<->code map; `/api/batches` only carries the platform's numeric `client_id`, never our `clients.code`. */
+export async function fetchRcmClients(
+  config: RcmConnectorConfig,
+  token: string
+): Promise<RcmPlatformClientRow[]> {
+  return authorizedGet<RcmPlatformClientRow[]>(
+    config.baseUrl,
+    token,
+    '/api/clients',
+    {},
+    config.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  )
+}
+
+/** `GET {base}/api/batches` — every submission batch across the org (no server-side since-cursor or client filter — see docs/connectors.md); the connector filters/paginates client-side. */
+export async function fetchRcmBatches(
+  config: RcmConnectorConfig,
+  token: string
+): Promise<RcmBatchRow[]> {
+  return authorizedGet<RcmBatchRow[]>(
+    config.baseUrl,
+    token,
+    '/api/batches',
+    {},
+    config.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  )
+}
+
+/**
+ * `GET {base}/api/batches/{id}/837.edi` — the whole batch as one X12 837
+ * file (`text/plain`, not JSON — hence its own fetch helper rather than
+ * `authorizedGet`). A `200` with an **empty** body is a real, observed
+ * response (verified live against rcm-prototype — a batch whose claim(s)
+ * no longer resolve, e.g. voided/reassigned after the batch was created)
+ * and is returned as `''` rather than thrown as a shape error: it isn't
+ * malformed EDI, it's zero claims. The caller (`LocalDataService
+ * .runClaimLevelBatchSync`) treats an empty result as "nothing to
+ * import for this batch," not a failure.
+ */
+export async function fetchRcmBatchEdi837(
+  config: RcmConnectorConfig,
+  token: string,
+  batchId: number
+): Promise<string> {
+  const base = normalizeBaseUrl(config.baseUrl)
+  const url = `${base}/api/batches/${batchId}/837.edi`
+  const res = await fetchWithTimeout(
+    url,
+    { headers: { Authorization: `Bearer ${token}` } },
+    config.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  )
+  if (res.status === 401) {
+    throw new RcmConnectorError(
+      'unauthorized',
+      `GET ${url} returned 401 — the token may have expired.`
+    )
+  }
+  if (!res.ok) {
+    throw new RcmConnectorError(
+      'http',
+      `GET ${url} failed: HTTP ${res.status} ${await safeText(res)}`
+    )
+  }
+  return safeText(res)
+}
+
+const CLAIMS_PAGE_SIZE = 200
+/** Defensive cap on pagination loops — 500 pages * 200/page = 100k claims for one client in one sync; a real deployment hitting this indicates a since-cursor is needed server-side, not that the connector should loop forever. */
+const CLAIMS_MAX_PAGES = 500
+
+/** `GET {base}/api/claims?client_id=&limit=&offset=` — one page of one client's claims (paid/allowed/status/denial-code detail; see `RcmClaimRow`). */
+export async function fetchRcmClaimsPage(
+  config: RcmConnectorConfig,
+  token: string,
+  clientId: number,
+  limit: number,
+  offset: number
+): Promise<RcmClaimRow[]> {
+  return authorizedGet<RcmClaimRow[]>(
+    config.baseUrl,
+    token,
+    '/api/claims',
+    { client_id: String(clientId), limit: String(limit), offset: String(offset) },
+    config.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  )
+}
+
+/** Pages through `GET /api/claims` for one platform client until a short page ends the list. */
+export async function fetchAllRcmClaims(
+  config: RcmConnectorConfig,
+  token: string,
+  clientId: number
+): Promise<RcmClaimRow[]> {
+  const all: RcmClaimRow[] = []
+  let offset = 0
+  for (let page = 0; page < CLAIMS_MAX_PAGES; page += 1) {
+    const rows = await fetchRcmClaimsPage(config, token, clientId, CLAIMS_PAGE_SIZE, offset)
+    all.push(...rows)
+    if (rows.length < CLAIMS_PAGE_SIZE) break
+    offset += CLAIMS_PAGE_SIZE
+  }
+  return all
 }

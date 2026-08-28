@@ -66,6 +66,7 @@ function ConnectorSection(): React.JSX.Element {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [enabled, setEnabled] = useState(false)
+  const [syncClaimLevel, setSyncClaimLevel] = useState(true)
   const [hasPassword, setHasPassword] = useState(false)
   const [passwordEncoding, setPasswordEncoding] = useState<'safeStorage' | 'plaintext' | null>(null)
   const [period, setPeriod] = useState(currentMonthValue())
@@ -82,6 +83,7 @@ function ConnectorSection(): React.JSX.Element {
       setBaseUrl(s.baseUrl ?? '')
       setUsername(s.username ?? '')
       setEnabled(s.enabled)
+      setSyncClaimLevel(s.syncClaimLevel)
       setHasPassword(s.hasPassword)
       setPasswordEncoding(s.passwordEncoding)
     })
@@ -97,10 +99,12 @@ function ConnectorSection(): React.JSX.Element {
         baseUrl: baseUrl.trim(),
         username: username.trim(),
         password: password.trim() ? password.trim() : undefined,
-        enabled
+        enabled,
+        syncClaimLevel
       })
       setHasPassword(saved.hasPassword)
       setPasswordEncoding(saved.passwordEncoding)
+      setSyncClaimLevel(saved.syncClaimLevel)
       setPassword('')
       setMessage('Saved.')
     } catch (error) {
@@ -129,8 +133,13 @@ function ConnectorSection(): React.JSX.Element {
     try {
       const result = await syncConnectorNow(period)
       const failures = result.results.filter((r) => !r.ok)
+      const cl = result.claimLevel
+      const batchFailures = cl.batches.filter((b) => !b.ok)
+      const claimLevelMsg = cl.enabled
+        ? ` Claim-level: ${cl.batches.length} batch(es) (${batchFailures.length} failure(s)), ${cl.enrichment.claimsUpdated} claim(s) enriched.`
+        : ' Claim-level sync is off.'
       setMessage(
-        `Synced ${result.results.length} client(s) for ${result.periodMonth} — ${failures.length} failure(s).`
+        `Synced ${result.results.length} client(s) for ${result.periodMonth} — ${failures.length} failure(s).${claimLevelMsg}`
       )
       refreshStatus()
     } catch (error) {
@@ -156,6 +165,20 @@ function ConnectorSection(): React.JSX.Element {
           Enabled
           <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
         </label>
+        <label>
+          Sync claim-level detail (837 batches)
+          <input
+            type="checkbox"
+            checked={syncClaimLevel}
+            onChange={(e) => setSyncClaimLevel(e.target.checked)}
+          />
+        </label>
+        <p>
+          When on (the default), each sync also pulls new submission batches as X12 837 into{' '}
+          <code>claims</code>/<code>claim_lines</code> (provenance <code>api</code>) and enriches
+          previously-synced claims with paid/allowed/status/denial detail — see the
+          &quot;Claim-level sync&quot; section of <code>docs/connectors.md</code>.
+        </p>
         <label>
           Base URL
           <input
@@ -214,6 +237,7 @@ function ConnectorSection(): React.JSX.Element {
               <th>Last period</th>
               <th>Last synced</th>
               <th>Status</th>
+              <th>Last batch</th>
               <th>Error</th>
             </tr>
           </thead>
@@ -227,6 +251,7 @@ function ConnectorSection(): React.JSX.Element {
                 <td>{row.lastSyncedPeriod ?? '—'}</td>
                 <td>{row.lastSyncedAt ? new Date(row.lastSyncedAt).toLocaleString() : '—'}</td>
                 <td>{row.lastStatus ?? '—'}</td>
+                <td>{row.lastBatchCursor ?? '—'}</td>
                 <td>{row.lastError ?? '—'}</td>
               </tr>
             ))}

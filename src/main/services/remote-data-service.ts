@@ -424,6 +424,7 @@ export class RemoteDataService implements IDataService {
     baseUrl: string
     username: string
     enabled: boolean
+    syncClaimLevel: boolean
     encryptedPassword?: EncryptedSecretInput
   }): Promise<ConnectorSettings> {
     return this.callRpc('saveConnectorSettings', input)

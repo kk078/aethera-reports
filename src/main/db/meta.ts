@@ -18,6 +18,23 @@ export function openMetaDb(dbPath: string): Database.Database {
 }
 
 /**
+ * Adds `column` to `table` if it isn't there yet — meta.db has no
+ * migration-version table (unlike DuckDB's `applyMigrations`; see
+ * `initMetaSchema`'s doc comment), so a schema addition to an
+ * already-created table needs this instead of a plain `CREATE TABLE IF
+ * NOT EXISTS` (which only matters for brand-new tables). `ddl` is the
+ * column definition after `ADD COLUMN` (e.g. `"foo INTEGER DEFAULT 0"`);
+ * `table`/`column`/`ddl` are always literal strings from this file, never
+ * user input, so simple string interpolation is fine here.
+ */
+function ensureColumn(db: Database.Database, table: string, column: string, ddl: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]
+  if (!columns.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`)
+  }
+}
+
+/**
  * Creates meta.db's tables if they don't already exist (plan §2 / Phase
  * 1 step 4): settings, branding, mapping templates, export audit log.
  * SQLite's own schema is simple enough that idempotent `CREATE TABLE IF
@@ -193,6 +210,26 @@ export function initMetaSchema(db: Database.Database): void {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `)
+
+  // Claim-level sync (docs/connectors.md "Claim-level sync") additions to
+  // the two tables above — added after both tables already shipped, so
+  // `CREATE TABLE IF NOT EXISTS` alone won't backfill them on an existing
+  // meta.db; see `ensureColumn`'s doc comment.
+  //
+  // sync_claim_level: opt-in toggle, default ON (1) — matches
+  // `connectorSettingsSchema.syncClaimLevel`'s documented default.
+  ensureColumn(
+    db,
+    'connector_settings',
+    'sync_claim_level',
+    'sync_claim_level INTEGER NOT NULL DEFAULT 1'
+  )
+  // last_batch_cursor: the highest platform `SubmissionBatch.id` this
+  // client has successfully imported (837.edi -> run837Import) — the
+  // claim-level sync's since-cursor, same role as
+  // `last_synced_period`/`last_synced_at` play for the summary sync.
+  // NULL means "never batch-synced yet."
+  ensureColumn(db, 'connector_sync_state', 'last_batch_cursor', 'last_batch_cursor INTEGER')
 }
 
 /**
