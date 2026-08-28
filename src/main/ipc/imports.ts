@@ -32,6 +32,11 @@ export function registerImportsHandlers(dataService: IDataService): void {
   ipcMain.handle('importJobs:runCsv', async (_event, rawPayload: unknown) => {
     const request = parseIpcRequest('importJobs:runCsv', rawPayload)
     const job = await dataService.runCsvImport(request)
+    // Fire-and-forget: cache any new CARC/CPT codes this import introduced
+    // (beacon paragraph, plan chunk C — "on import/scheduled refresh").
+    // Never awaited/blocking, never surfaces an error to the import result
+    // — the reference API is optional enrichment.
+    void dataService.refreshReferenceApiCache().catch(() => undefined)
     return parseIpcResponse('importJobs:runCsv', job)
   })
 
@@ -89,6 +94,8 @@ export function registerImportsHandlers(dataService: IDataService): void {
   ipcMain.handle('importJobs:runX12', async (_event, rawPayload: unknown) => {
     const request = parseIpcRequest('importJobs:runX12', rawPayload)
     const job = await dataService.runX12Import(request)
+    // See importJobs:runCsv above — same fire-and-forget cache refresh.
+    void dataService.refreshReferenceApiCache().catch(() => undefined)
     return parseIpcResponse('importJobs:runX12', job)
   })
 

@@ -32,6 +32,7 @@
     "build:linux": "electron-vite build && electron-builder --linux",
     "e2e:import-check": "vite-node scripts/e2e-import-check.ts",
     "e2e:generate-check": "vite-node scripts/e2e-generate-check.ts",
+    "e2e:connector-sync": "vite-node scripts/e2e-connector-sync.ts",
     "crosscheck:rcm": "vite-node scripts/crosscheck-rcm.ts",
     "cli": "vite-node src/main/cli-entry.ts --"
   },

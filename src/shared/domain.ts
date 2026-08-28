@@ -21,6 +21,8 @@ export const clientSchema = z.object({
   contractRate: z.number().nullable(),
   slaDaysToSubmit: z.number().int().nullable(),
   reportRecipients: z.array(z.string().email()),
+  /** Two-letter US state — scopes the Reference & Benchmark connector's `/price/commercial` lookup (plan chunk C); null skips the benchmark block. */
+  state: z.string().length(2).nullable(),
   active: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string()
@@ -37,7 +39,8 @@ export const newClientInputSchema = z.object({
   contractType: z.string().max(100).nullable().optional(),
   contractRate: z.number().min(0).max(1).nullable().optional(),
   slaDaysToSubmit: z.number().int().positive().nullable().optional(),
-  reportRecipients: z.array(z.string().email()).optional()
+  reportRecipients: z.array(z.string().email()).optional(),
+  state: z.string().length(2).nullable().optional()
 })
 export type NewClientInput = z.infer<typeof newClientInputSchema>
 
@@ -47,6 +50,7 @@ export const clientPatchSchema = z.object({
   contractRate: z.number().min(0).max(1).nullable().optional(),
   slaDaysToSubmit: z.number().int().positive().nullable().optional(),
   reportRecipients: z.array(z.string().email()).optional(),
+  state: z.string().length(2).nullable().optional(),
   active: z.boolean().optional()
 })
 export type ClientPatch = z.infer<typeof clientPatchSchema>
@@ -198,7 +202,9 @@ export type MonthlySummaryInput = z.infer<typeof monthlySummaryInputSchema>
 
 export const monthlySummarySchema = monthlySummaryInputSchema.extend({
   updatedAt: z.string(),
-  priorValues: z.unknown().nullable()
+  priorValues: z.unknown().nullable(),
+  /** 'synced' = written by the RCM Platform connector (plan §3 bullet 3); 'manual' = the Manual Entry screen — including overwriting a previously-synced row. */
+  source: z.enum(['manual', 'synced'])
 })
 export type MonthlySummary = z.infer<typeof monthlySummarySchema>
 
@@ -305,6 +311,34 @@ export const kpiTrendsSchema = z.object({
 })
 export type KpiTrends = z.infer<typeof kpiTrendsSchema>
 
+// ---------------------------------------------------------------------
+// Benchmark block (plan's beacon paragraph, Phase 2 chunk C) — avg
+// allowed on the client's top CPT codes vs. the Reference & Benchmark
+// API's state percentile data. Assembled outside `buildClientReport`
+// (see kpi/client-report.ts's `options.benchmark`) and excluded from the
+// rcm-prototype parity crosscheck — documented in docs/kpi-parity.md,
+// since rcm-prototype has no equivalent field.
+// ---------------------------------------------------------------------
+
+export const benchmarkCptRowSchema = z.object({
+  cptCode: z.string(),
+  description: z.string().nullable(),
+  avgAllowed: z.number(),
+  claimsCount: z.number().int().nonnegative(),
+  /** NULL when the reference API had no benchmark data for this code/state — never a fabricated figure. */
+  stateMedian: z.number().nullable(),
+  statePercentile25: z.number().nullable(),
+  statePercentile75: z.number().nullable()
+})
+export type BenchmarkCptRow = z.infer<typeof benchmarkCptRowSchema>
+
+export const benchmarkBlockSchema = z.object({
+  state: z.string(),
+  asOf: z.string(),
+  cpts: z.array(benchmarkCptRowSchema)
+})
+export type BenchmarkBlock = z.infer<typeof benchmarkBlockSchema>
+
 export const clientReportSchema = z.object({
   client: z.object({ code: z.string(), name: z.string(), contract: z.string() }),
   period: z.object({ start: z.string(), end: z.string() }),
@@ -339,7 +373,9 @@ export const clientReportSchema = z.object({
   denialsByRootCause: z.record(z.string(), z.number()),
   claimsByStatus: z.record(z.string(), z.number()),
   /** Not part of rcm-prototype's shape (see docs/kpi-parity.md) — added for the dashboard's payer-mix chart. */
-  payerMix: z.array(z.object({ payerName: z.string(), charges: z.number() }))
+  payerMix: z.array(z.object({ payerName: z.string(), charges: z.number() })),
+  /** Not part of rcm-prototype's shape (see docs/kpi-parity.md) — null unless the Reference & Benchmark connector is enabled, the client has a state configured, and it returned data. */
+  benchmark: benchmarkBlockSchema.nullable()
 })
 export type ClientReport = z.infer<typeof clientReportSchema>
 
@@ -517,3 +553,92 @@ export const batchExportResultSchema = z.object({
   results: z.array(exportResultSchema)
 })
 export type BatchExportResult = z.infer<typeof batchExportResultSchema>
+
+// ---------------------------------------------------------------------
+// Generic RCM Platform REST connector (plan §3 bullet 3, Phase 2 chunk
+// C). "Open-source requirements": documented and implemented as a
+// generic connector (configurable base URL + OAuth2 password/JWT) —
+// rcm-prototype's `/api/reports` surface is the documented *reference
+// implementation* (docs/connectors.md), never a hardcoded dependency.
+// ---------------------------------------------------------------------
+
+export const connectorSettingsSchema = z.object({
+  baseUrl: z.string().nullable(),
+  username: z.string().nullable(),
+  hasPassword: z.boolean(),
+  enabled: z.boolean(),
+  /** Whether the stored password used the OS-level `safeStorage` encryption or the documented plaintext fallback — Settings surfaces a warning for the latter. */
+  passwordEncoding: z.enum(['safeStorage', 'plaintext']).nullable()
+})
+export type ConnectorSettings = z.infer<typeof connectorSettingsSchema>
+
+export const connectorSettingsInputSchema = z.object({
+  baseUrl: z.string().min(1),
+  username: z.string().min(1),
+  /** Omit to keep the currently stored password unchanged (e.g. editing the base URL only). */
+  password: z.string().min(1).optional(),
+  enabled: z.boolean()
+})
+export type ConnectorSettingsInput = z.infer<typeof connectorSettingsInputSchema>
+
+export const connectorTestResultSchema = z.object({
+  ok: z.boolean(),
+  message: z.string()
+})
+export type ConnectorTestResult = z.infer<typeof connectorTestResultSchema>
+
+export const connectorSyncClientResultSchema = z.object({
+  clientCode: z.string(),
+  ok: z.boolean(),
+  created: z.boolean(),
+  error: z.string().nullable()
+})
+export type ConnectorSyncClientResult = z.infer<typeof connectorSyncClientResultSchema>
+
+export const connectorSyncResultSchema = z.object({
+  periodMonth: z.string(),
+  results: z.array(connectorSyncClientResultSchema)
+})
+export type ConnectorSyncResult = z.infer<typeof connectorSyncResultSchema>
+
+export const connectorSyncStatusRowSchema = z.object({
+  clientCode: z.string(),
+  lastSyncedPeriod: z.string().nullable(),
+  lastSyncedAt: z.string().nullable(),
+  lastStatus: z.string().nullable(),
+  lastError: z.string().nullable(),
+  createdByConnector: z.boolean()
+})
+export type ConnectorSyncStatusRow = z.infer<typeof connectorSyncStatusRowSchema>
+
+export const runConnectorSyncInputSchema = z.object({
+  periodMonth: z.string().regex(/^\d{4}-\d{2}$/)
+})
+export type RunConnectorSyncInput = z.infer<typeof runConnectorSyncInputSchema>
+
+// ---------------------------------------------------------------------
+// Reference & Benchmark API connector (the beacon paragraph in the
+// plan's "Existing assets" — generic, configurable, optional, degrades
+// gracefully; `/home/aethera/projects/beacon` at 127.0.0.1:8110 is the
+// reference deployment, not a hardcoded dependency).
+// ---------------------------------------------------------------------
+
+export const referenceApiSettingsSchema = z.object({
+  baseUrl: z.string(),
+  enabled: z.boolean(),
+  lastHealthOk: z.boolean().nullable(),
+  lastHealthAt: z.string().nullable()
+})
+export type ReferenceApiSettings = z.infer<typeof referenceApiSettingsSchema>
+
+export const referenceApiSettingsInputSchema = z.object({
+  baseUrl: z.string().min(1),
+  enabled: z.boolean()
+})
+export type ReferenceApiSettingsInput = z.infer<typeof referenceApiSettingsInputSchema>
+
+export const referenceApiCacheRefreshResultSchema = z.object({
+  carc: z.object({ cached: z.number().int(), notFound: z.number().int() }),
+  cpt: z.object({ cached: z.number().int(), notFound: z.number().int() })
+})
+export type ReferenceApiCacheRefreshResult = z.infer<typeof referenceApiCacheRefreshResultSchema>

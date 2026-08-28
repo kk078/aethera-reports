@@ -17,6 +17,10 @@ import type {
   Client,
   ClientPatch,
   ClientReport,
+  ConnectorSettings,
+  ConnectorSyncResult,
+  ConnectorSyncStatusRow,
+  ConnectorTestResult,
   DaysInArTrendPoint,
   DenialListRow,
   ImportFileKind,
@@ -31,11 +35,27 @@ import type {
   PayerMixTrendPoint,
   PayerVsPatientSplit,
   QuarantineRow,
+  ReferenceApiCacheRefreshResult,
+  ReferenceApiSettings,
+  ReferenceApiSettingsInput,
   RunCsvImportInput,
   RunX12ImportInput,
   TopAgedClaimRow,
   X12ParseSummary
 } from '../../shared/domain'
+
+/**
+ * Shape of an already-encrypted (or documented-plaintext-fallback)
+ * secret — structurally identical to `credentials.ts`'s `EncryptedSecret`
+ * but declared independently here so this Electron-free file never even
+ * has a `import type` edge to that Electron-touching module. Only
+ * `ipc/rcm-connector.ts` produces/consumes the real encryption; this
+ * interface just moves the opaque blob.
+ */
+export interface EncryptedSecretInput {
+  data: string
+  encoding: 'safeStorage' | 'plaintext'
+}
 
 export interface IDataService {
   // --- Clients ---
@@ -88,6 +108,37 @@ export interface IDataService {
     endPeriodMonth: string,
     monthsBack?: number
   ): Promise<PayerMixTrendPoint[]>
+
+  // --- Generic RCM Platform REST connector (plan §3 bullet 3, Phase 2 chunk C) ---
+  getConnectorSettings(): Promise<ConnectorSettings>
+  /** `encryptedPassword` is already-encrypted (or plaintext-fallback-flagged) by the caller — this method never touches `safeStorage`. Omit to keep the currently stored password. */
+  saveConnectorSettings(input: {
+    baseUrl: string
+    username: string
+    enabled: boolean
+    encryptedPassword?: EncryptedSecretInput
+  }): Promise<ConnectorSettings>
+  getEncryptedConnectorPassword(): Promise<EncryptedSecretInput | null>
+  /** Password already decrypted by the caller (`ipc/rcm-connector.ts`, via `credentials.ts`) — this method never touches `safeStorage` itself. */
+  testConnectorConnection(
+    baseUrl: string,
+    username: string,
+    password: string
+  ): Promise<ConnectorTestResult>
+  runConnectorSync(
+    baseUrl: string,
+    username: string,
+    password: string,
+    periodMonth: string
+  ): Promise<ConnectorSyncResult>
+  listConnectorSyncStatus(): Promise<ConnectorSyncStatusRow[]>
+
+  // --- Reference & Benchmark API connector (beacon paragraph, Phase 2 chunk C) ---
+  getReferenceApiSettings(): Promise<ReferenceApiSettings>
+  saveReferenceApiSettings(input: ReferenceApiSettingsInput): Promise<ReferenceApiSettings>
+  testReferenceApiConnection(): Promise<ConnectorTestResult>
+  refreshReferenceApiCache(): Promise<ReferenceApiCacheRefreshResult>
+  getCarcDescriptions(codes: string[]): Promise<Record<string, string>>
 
   // --- KPI engine / reports (plan §4) ---
   buildClientReport(clientId: number, periodMonth: string): Promise<ClientReport>

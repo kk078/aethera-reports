@@ -104,14 +104,42 @@ created in the period, sorted descending. Excluded from `scripts/crosscheck-rcm.
 comparison since there's nothing on the rcm-prototype side to diff it
 against.
 
+### `benchmark` (Phase 2 chunk C — excluded from the parity crosscheck)
+
+Not present in rcm-prototype's `client_report()`, and **deliberately
+excluded** from `scripts/crosscheck-rcm.ts`'s comparison — there's no
+rcm-prototype field to diff it against, same reasoning as `payerMix`
+above. Assembled entirely outside `buildClientReport` (by
+`LocalDataService`, via `src/main/beacon/benchmark.ts`) and passed in as
+an already-computed `options.benchmark` value (see `client-report.ts`'s
+`BuildClientReportOptions`) — `buildClientReport` itself never makes a
+network call, so every existing golden test and the crosscheck script
+(which call it with no options) get `benchmark: null` and are otherwise
+unaffected by this addition.
+
+Sourced from the generic Reference & Benchmark API connector (the
+beacon paragraph in the plan's "Existing assets" — see
+`docs/connectors.md`): avg allowed on the client's top 3 CPT codes this
+period vs. the state median/p25/p75 from `/price/commercial/{code}`.
+Renders only when the connector is enabled, the client has a `state`
+configured, the reference API is reachable, and at least one CPT came
+back with data — `null` in every other case, never a fabricated
+placeholder.
+
 ### `source`
 
 Not present in rcm-prototype's output — new provenance field (plan §4)
 so exports can footnote which fallback rung produced the numbers:
 `"claims"` (claim-level data existed for this client), `"manual"` (no
-claims at all; fell back to the client-month's `monthly_summaries` row),
-or `"synced"` (Phase 2: populated by the rcm-prototype/RCM-platform
-connector — not used yet).
+claims at all; fell back to the client-month's `monthly_summaries` row,
+entered by a human on the Manual Entry screen), or `"synced"` (Phase 2
+chunk C: that `monthly_summaries` row was written by the generic RCM
+Platform connector instead — see `docs/connectors.md`).
+`monthly_summaries.source` (added in migration `003_connector.sql`)
+is the DB-level flag `buildClientReport` reads to tell `"manual"` from
+`"synced"`; a human editing a previously-synced month via Manual Entry
+flips it back to `"manual"` (an edited row is no longer purely synced
+data).
 
 ## The one shared `rate()` helper
 

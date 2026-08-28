@@ -144,6 +144,49 @@ function ReportDocument({
         <PayerMixChart ref={payerMixChartRef} payerMix={report.payerMix} animation={animation} />
       </section>
 
+      {report.benchmark && (
+        <section className="report-doc-section report-doc-page-break">
+          <h2>Benchmark — avg allowed vs. {report.benchmark.state} state percentiles</h2>
+          <p className="report-doc-provenance">
+            Reference &amp; Benchmark API connector, as of{' '}
+            {new Date(report.benchmark.asOf).toLocaleDateString()}. Not part of rcm-prototype&apos;s
+            report shape — excluded from the KPI parity crosscheck (docs/kpi-parity.md).
+          </p>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>CPT</th>
+                <th>Description</th>
+                <th>Our avg allowed</th>
+                <th>State p25</th>
+                <th>State median</th>
+                <th>State p75</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.benchmark.cpts.map((cpt) => (
+                <tr key={cpt.cptCode}>
+                  <td>{cpt.cptCode}</td>
+                  <td>{cpt.description ?? '—'}</td>
+                  <td>${cpt.avgAllowed.toLocaleString()}</td>
+                  <td>
+                    {cpt.statePercentile25 !== null
+                      ? `$${cpt.statePercentile25.toLocaleString()}`
+                      : '—'}
+                  </td>
+                  <td>{cpt.stateMedian !== null ? `$${cpt.stateMedian.toLocaleString()}` : '—'}</td>
+                  <td>
+                    {cpt.statePercentile75 !== null
+                      ? `$${cpt.statePercentile75.toLocaleString()}`
+                      : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
       <footer className="report-doc-footer">
         {branding.footerDisclaimer && <p>{branding.footerDisclaimer}</p>}
         <p>

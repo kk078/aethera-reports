@@ -17,7 +17,21 @@ import { ratePercent, round2 } from './rate'
 import { buildKpiTrends } from './kpi-trends'
 import { EMPTY_AGING, bucketForDays, openClaimAmount } from './aging'
 import { daysBetween, daysBetweenInclusive, monthPeriod, todayUtcIso } from '../../shared/periods'
-import type { ArAgingBuckets, ClientReport } from '../../shared/domain'
+import type { ArAgingBuckets, BenchmarkBlock, ClientReport } from '../../shared/domain'
+
+export interface BuildClientReportOptions {
+  /**
+   * Pre-computed benchmark block (plan's beacon paragraph) — assembled
+   * by `LocalDataService` (which owns the Reference & Benchmark
+   * connector's settings/health-cache state) and passed in here, rather
+   * than fetched by this function itself. Keeps `buildClientReport`
+   * network-free: `scripts/crosscheck-rcm.ts` and the golden tests call
+   * it directly with no options and always get `benchmark: null`, which
+   * is exactly the "excluded from the parity crosscheck" documented in
+   * docs/kpi-parity.md.
+   */
+  benchmark?: BenchmarkBlock | null
+}
 
 interface ClientRow {
   clientId: number
@@ -110,7 +124,8 @@ function computeAging(rows: AgingRow[], nowIso: string): { openAr: number; aging
 async function buildEmptyReport(
   connection: DuckDBConnection,
   client: ClientRow,
-  periodMonth: string
+  periodMonth: string,
+  benchmark: BenchmarkBlock | null
 ): Promise<ClientReport> {
   const period = monthPeriod(periodMonth)
   const kpiTrends = await buildKpiTrends(connection, client.clientId, period.end)
@@ -145,7 +160,8 @@ async function buildEmptyReport(
     kpiTrends,
     denialsByRootCause: {},
     claimsByStatus: {},
-    payerMix: []
+    payerMix: [],
+    benchmark
   }
 }
 
@@ -166,7 +182,9 @@ function buildManualReport(
     claimsSubmitted: number | null
     denialsCount: number | null
   },
-  kpiTrends: ClientReport['kpiTrends']
+  kpiTrends: ClientReport['kpiTrends'],
+  source: 'manual' | 'synced',
+  benchmark: BenchmarkBlock | null
 ): ClientReport {
   const totalCollections = (summary.insCollections ?? 0) + (summary.ptCollections ?? 0)
   const openAr = summary.openAr ?? 0
@@ -178,7 +196,7 @@ function buildManualReport(
       contract: formatContract(client.contractType, client.contractRate)
     },
     period,
-    source: 'manual',
+    source,
     volume: {
       encountersReceived: summary.claimsSubmitted ?? 0,
       claimsSubmitted: summary.claimsSubmitted ?? 0,
@@ -217,15 +235,18 @@ function buildManualReport(
     kpiTrends,
     denialsByRootCause: {},
     claimsByStatus: {},
-    payerMix: []
+    payerMix: [],
+    benchmark
   }
 }
 
 export async function buildClientReport(
   connection: DuckDBConnection,
   clientId: number,
-  periodMonth: string
+  periodMonth: string,
+  options: BuildClientReportOptions = {}
 ): Promise<ClientReport> {
+  const benchmark = options.benchmark ?? null
   const client = await fetchClient(connection, clientId)
   if (!client) throw new Error(`Unknown client_id: ${clientId}`)
 
@@ -249,6 +270,7 @@ export async function buildClientReport(
     if (summaryRows.length > 0) {
       const s = summaryRows[0]
       const n = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v))
+      const rowSource = s.source === 'synced' ? 'synced' : 'manual'
       return buildManualReport(
         client,
         period,
@@ -265,10 +287,12 @@ export async function buildClientReport(
           claimsSubmitted: n(s.claims_submitted),
           denialsCount: n(s.denials_count)
         },
-        kpiTrends
+        kpiTrends,
+        rowSource,
+        benchmark
       )
     }
-    return buildEmptyReport(connection, client, periodMonth)
+    return buildEmptyReport(connection, client, periodMonth, benchmark)
   }
 
   const [
@@ -404,6 +428,7 @@ export async function buildClientReport(
     kpiTrends,
     denialsByRootCause,
     claimsByStatus,
-    payerMix
+    payerMix,
+    benchmark
   }
 }

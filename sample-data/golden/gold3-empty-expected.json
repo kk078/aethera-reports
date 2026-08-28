@@ -47,5 +47,6 @@
   },
   "denialsByRootCause": {},
   "claimsByStatus": {},
-  "payerMix": []
+  "payerMix": [],
+  "benchmark": null
 }

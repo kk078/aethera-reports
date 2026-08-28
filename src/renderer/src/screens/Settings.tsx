@@ -1,14 +1,323 @@
 import { useEffect, useState } from 'react'
-import type { Branding, BackupStatus } from '../../../shared/domain'
+import type {
+  Branding,
+  BackupStatus,
+  ConnectorSyncStatusRow,
+  ReferenceApiCacheRefreshResult
+} from '../../../shared/domain'
 import {
   getBackupStatus,
   getBranding,
+  getConnectorSettings,
+  getConnectorSyncStatus,
+  getReferenceApiSettings,
   pickAndSetBrandingLogo,
   ping,
+  refreshReferenceApiCache,
   restoreLatestBackup,
   runBackupNow,
+  saveConnectorSettings,
+  saveReferenceApiSettings,
+  syncConnectorNow,
+  testConnectorConnection,
+  testReferenceApiConnection,
   updateBranding
 } from '../lib/api'
+
+function currentMonthValue(): string {
+  const now = new Date()
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+/**
+ * Generic RCM Platform REST connector settings (plan §3 bullet 3):
+ * connection config, "Test connection", per-client sync status, "Sync
+ * now". Errors surface inline — this screen never blocks app startup,
+ * the connector is entirely optional/off by default.
+ */
+function ConnectorSection(): React.JSX.Element {
+  const [baseUrl, setBaseUrl] = useState('')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [enabled, setEnabled] = useState(false)
+  const [hasPassword, setHasPassword] = useState(false)
+  const [passwordEncoding, setPasswordEncoding] = useState<'safeStorage' | 'plaintext' | null>(null)
+  const [period, setPeriod] = useState(currentMonthValue())
+  const [syncStatus, setSyncStatus] = useState<ConnectorSyncStatusRow[]>([])
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  function refreshStatus(): void {
+    void getConnectorSyncStatus().then(setSyncStatus)
+  }
+
+  useEffect(() => {
+    getConnectorSettings().then((s) => {
+      setBaseUrl(s.baseUrl ?? '')
+      setUsername(s.username ?? '')
+      setEnabled(s.enabled)
+      setHasPassword(s.hasPassword)
+      setPasswordEncoding(s.passwordEncoding)
+    })
+    refreshStatus()
+  }, [])
+
+  async function handleSave(event: React.FormEvent): Promise<void> {
+    event.preventDefault()
+    setBusy(true)
+    setMessage(null)
+    try {
+      const saved = await saveConnectorSettings({
+        baseUrl: baseUrl.trim(),
+        username: username.trim(),
+        password: password.trim() ? password.trim() : undefined,
+        enabled
+      })
+      setHasPassword(saved.hasPassword)
+      setPasswordEncoding(saved.passwordEncoding)
+      setPassword('')
+      setMessage('Saved.')
+    } catch (error) {
+      setMessage(String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleTest(): Promise<void> {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const result = await testConnectorConnection()
+      setMessage(result.ok ? `✓ ${result.message}` : `✗ ${result.message}`)
+    } catch (error) {
+      setMessage(String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleSyncNow(): Promise<void> {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const result = await syncConnectorNow(period)
+      const failures = result.results.filter((r) => !r.ok)
+      setMessage(
+        `Synced ${result.results.length} client(s) for ${result.periodMonth} — ${failures.length} failure(s).`
+      )
+      refreshStatus()
+    } catch (error) {
+      setMessage(String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <h2>RCM Platform connector</h2>
+      <p>
+        Generic REST connector (configurable base URL + OAuth2 password/JWT) — syncs each
+        client&apos;s computed monthly report into <code>monthly_summaries</code>/
+        <code>kpi_snapshots</code> with provenance <code>synced</code>. See{' '}
+        <code>docs/connectors.md</code> for the API contract; rcm-prototype is the documented
+        reference implementation, not a hardcoded dependency.
+      </p>
+      <form className="client-form" onSubmit={(e) => void handleSave(e)}>
+        {message && <p>{message}</p>}
+        <label>
+          Enabled
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+        </label>
+        <label>
+          Base URL
+          <input
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            placeholder="http://127.0.0.1:8000"
+          />
+        </label>
+        <label>
+          Username
+          <input value={username} onChange={(e) => setUsername(e.target.value)} />
+        </label>
+        <label>
+          Password {hasPassword && !password && '(saved — leave blank to keep it)'}
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={hasPassword ? '••••••••' : ''}
+          />
+        </label>
+        {hasPassword && passwordEncoding === 'plaintext' && (
+          <p className="form-error">
+            Warning: OS-level credential encryption is unavailable on this machine — the password is
+            stored in plaintext in meta.db. Re-enter it after fixing the OS keyring/DPAPI to upgrade
+            to encrypted storage.
+          </p>
+        )}
+        <button type="submit" disabled={busy}>
+          Save
+        </button>
+        <button type="button" disabled={busy || !hasPassword} onClick={() => void handleTest()}>
+          Test connection
+        </button>
+      </form>
+
+      <h3>Sync</h3>
+      <div className="manual-entry-controls">
+        <label>
+          Period
+          <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
+        </label>
+        <button type="button" disabled={busy || !hasPassword} onClick={() => void handleSyncNow()}>
+          {busy ? 'Working…' : 'Sync now'}
+        </button>
+      </div>
+
+      <h3>Per-client sync status</h3>
+      {syncStatus.length === 0 ? (
+        <p>No syncs recorded yet.</p>
+      ) : (
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Client</th>
+              <th>Last period</th>
+              <th>Last synced</th>
+              <th>Status</th>
+              <th>Error</th>
+            </tr>
+          </thead>
+          <tbody>
+            {syncStatus.map((row) => (
+              <tr key={row.clientCode}>
+                <td>
+                  {row.clientCode}
+                  {row.createdByConnector && ' (created by connector)'}
+                </td>
+                <td>{row.lastSyncedPeriod ?? '—'}</td>
+                <td>{row.lastSyncedAt ? new Date(row.lastSyncedAt).toLocaleString() : '—'}</td>
+                <td>{row.lastStatus ?? '—'}</td>
+                <td>{row.lastError ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </>
+  )
+}
+
+/**
+ * Reference & Benchmark API connector settings (the beacon paragraph) —
+ * optional, degrades gracefully. "Refresh cache" also runs automatically
+ * (fire-and-forget) after every CSV/X12 import.
+ */
+function ReferenceApiSection(): React.JSX.Element {
+  const [baseUrl, setBaseUrl] = useState('')
+  const [enabled, setEnabled] = useState(true)
+  const [lastHealthOk, setLastHealthOk] = useState<boolean | null>(null)
+  const [lastHealthAt, setLastHealthAt] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+
+  function refresh(): void {
+    getReferenceApiSettings().then((s) => {
+      setBaseUrl(s.baseUrl)
+      setEnabled(s.enabled)
+      setLastHealthOk(s.lastHealthOk)
+      setLastHealthAt(s.lastHealthAt)
+    })
+  }
+
+  useEffect(refresh, [])
+
+  async function handleSave(event: React.FormEvent): Promise<void> {
+    event.preventDefault()
+    setBusy(true)
+    setMessage(null)
+    try {
+      await saveReferenceApiSettings({ baseUrl: baseUrl.trim(), enabled })
+      setMessage('Saved.')
+      refresh()
+    } catch (error) {
+      setMessage(String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleTest(): Promise<void> {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const result = await testReferenceApiConnection()
+      setMessage(result.ok ? `✓ ${result.message}` : `✗ ${result.message}`)
+      refresh()
+    } catch (error) {
+      setMessage(String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleRefreshCache(): Promise<void> {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const result: ReferenceApiCacheRefreshResult = await refreshReferenceApiCache()
+      setMessage(
+        `CARC: ${result.carc.cached} cached, ${result.carc.notFound} not found. CPT: ${result.cpt.cached} cached, ${result.cpt.notFound} not found.`
+      )
+    } catch (error) {
+      setMessage(String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <h2>Reference &amp; Benchmark API</h2>
+      <p>
+        Optional enrichment (generic, configurable base URL) — caches CARC/CPT descriptions locally
+        and adds a &quot;vs. state benchmark&quot; callout to client reports when a client has a
+        state set. The app degrades gracefully whenever this is unreachable; the reference
+        deployment used during development is <code>http://127.0.0.1:8110</code> (not a hardcoded
+        dependency).
+      </p>
+      <form className="client-form" onSubmit={(e) => void handleSave(e)}>
+        {message && <p>{message}</p>}
+        <label>
+          Enabled
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+        </label>
+        <label>
+          Base URL
+          <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
+        </label>
+        <p>
+          Last health check:{' '}
+          {lastHealthAt
+            ? `${lastHealthOk ? 'reachable' : 'unreachable'} at ${new Date(lastHealthAt).toLocaleString()}`
+            : 'never checked'}
+        </p>
+        <button type="submit" disabled={busy}>
+          Save
+        </button>
+        <button type="button" disabled={busy} onClick={() => void handleTest()}>
+          Test connection
+        </button>
+        <button type="button" disabled={busy} onClick={() => void handleRefreshCache()}>
+          Refresh cache now
+        </button>
+      </form>
+    </>
+  )
+}
 
 function BrandingSection(): React.JSX.Element {
   const [branding, setBranding] = useState<Branding | null>(null)
@@ -231,6 +540,8 @@ function Settings(): React.JSX.Element {
       <h1>Settings</h1>
 
       <BrandingSection />
+      <ConnectorSection />
+      <ReferenceApiSection />
       <BackupsSection />
 
       <h2>Diagnostics</h2>

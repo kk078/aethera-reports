@@ -152,7 +152,8 @@ function buildDenialsSheet(
   workbook: ExcelJS.Workbook,
   branding: Branding,
   report: ClientReport,
-  denials: Awaited<ReturnType<IDataService['listDenials']>>
+  denials: Awaited<ReturnType<IDataService['listDenials']>>,
+  carcDescriptions: Record<string, string>
 ): void {
   const sheet = workbook.addWorksheet('Denials')
   sheet.columns = [
@@ -194,7 +195,11 @@ function buildDenialsSheet(
       sheet.getCell(row, 4).value = denial.carcCode ?? ''
       sheet.getCell(row, 5).value = denial.category
       sheet.getCell(row, 6).value = denial.rootCauseStage ?? ''
-      sheet.getCell(row, 7).value = denial.description ?? ''
+      // Cached Reference & Benchmark API description (plan chunk C) fills
+      // in when the denial row itself has none (our importers don't
+      // populate `denials.description`).
+      sheet.getCell(row, 7).value =
+        denial.description ?? (denial.carcCode ? (carcDescriptions[denial.carcCode] ?? '') : '')
       if (denial.recoveredAmount !== null) {
         sheet.getCell(row, 8).value = denial.recoveredAmount
         sheet.getCell(row, 8).numFmt = '$#,##0.00'
@@ -321,6 +326,11 @@ export async function renderClientReportXlsxBuffer(
     dataService.getClientFinancialTrend(clientId, periodMonth),
     dataService.listDenials(clientId, periodMonth)
   ])
+  const carcCodes = Array.from(
+    new Set(denials.map((d) => d.carcCode).filter((c): c is string => !!c))
+  )
+  const carcDescriptions =
+    carcCodes.length > 0 ? await dataService.getCarcDescriptions(carcCodes) : {}
 
   const workbook = new ExcelJS.Workbook()
   workbook.creator = branding.firmName
@@ -328,7 +338,7 @@ export async function renderClientReportXlsxBuffer(
 
   buildSummarySheet(workbook, branding, report)
   buildArAgingSheet(workbook, branding, report)
-  buildDenialsSheet(workbook, branding, report, denials)
+  buildDenialsSheet(workbook, branding, report, denials, carcDescriptions)
   buildPayerMixSheet(workbook, branding, report)
   buildClaimsByStatusSheet(workbook, branding, report)
   buildMonthlyTrendSheet(workbook, branding, report, trend)

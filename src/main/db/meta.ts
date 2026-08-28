@@ -69,6 +69,48 @@ export function initMetaSchema(db: Database.Database): void {
       performed_at TEXT NOT NULL DEFAULT (datetime('now')),
       performed_by TEXT
     );
+
+    -- Generic RCM Platform REST connector (plan §3 bullet 3, Phase 2
+    -- chunk C) — connection config + the encrypted password blob.
+    -- password_data/password_encoding are opaque to everything except
+    -- src/main/credentials.ts (Electron safeStorage): 'safeStorage' means
+    -- password_data is the base64 of safeStorage.encryptString()'s
+    -- Buffer; 'plaintext' is the documented fallback for platforms/setups
+    -- where safeStorage.isEncryptionAvailable() is false. LocalDataService
+    -- never decodes this column itself — it stays Electron-free.
+    CREATE TABLE IF NOT EXISTS connector_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      base_url TEXT,
+      username TEXT,
+      password_data TEXT,
+      password_encoding TEXT,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Per-client sync cursor + status (plan §3: "sync cursor per client
+    -- in SQLite"). created_by_connector flags a client the connector
+    -- created (vs. one that already existed and was matched by code) —
+    -- the Settings screen renders that as a "synced from connector" note.
+    CREATE TABLE IF NOT EXISTS connector_sync_state (
+      client_code TEXT PRIMARY KEY,
+      last_synced_period TEXT,
+      last_synced_at TEXT,
+      last_status TEXT,
+      last_error TEXT,
+      created_by_connector INTEGER NOT NULL DEFAULT 0
+    );
+
+    -- Reference & Benchmark API connector (plan's beacon paragraph,
+    -- Phase 2 chunk C) — optional, no credentials (beacon has none).
+    CREATE TABLE IF NOT EXISTS reference_api_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      base_url TEXT NOT NULL DEFAULT 'http://127.0.0.1:8110',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      last_health_ok INTEGER,
+      last_health_at TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `)
 }
 

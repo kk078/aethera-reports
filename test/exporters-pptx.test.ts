@@ -53,7 +53,8 @@ const REPORT: ClientReport = {
   payerMix: [
     { payerName: 'Payer X', charges: 6000 },
     { payerName: 'Payer Y', charges: 4000 }
-  ]
+  ],
+  benchmark: null
 }
 
 async function slideXmlFiles(buffer: Buffer): Promise<string[]> {

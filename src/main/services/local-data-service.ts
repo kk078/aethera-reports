@@ -29,13 +29,34 @@ import { run835Import, run837Import } from '../importers/x12/run-x12-import'
 import { buildClientReport as buildClientReportFn } from '../kpi/client-report'
 import { buildFinancialTrend } from '../kpi/trend'
 import * as analytics from '../kpi/analytics'
-import type { IDataService } from './data-service'
+import {
+  loginRcmPlatform,
+  fetchRcmPortfolio,
+  fetchRcmClientReport,
+  RcmConnectorError,
+  findOrCreateClientForSync,
+  upsertMonthlySummaryFromReport,
+  upsertKpiSnapshotFromReport
+} from '../importers/rcm-connector'
+import {
+  checkReferenceApiHealth,
+  refreshCarcCache,
+  refreshCptCache,
+  getCachedCarcDescriptions,
+  buildBenchmarkBlock
+} from '../beacon'
+import { monthPeriod, periodMonthColumn } from '../../shared/periods'
+import type { IDataService, EncryptedSecretInput } from './data-service'
 import {
   backupStatusSchema,
   brandingInputSchema,
   brandingSchema,
   clientPatchSchema,
   clientSchema,
+  connectorSettingsSchema,
+  connectorSyncResultSchema,
+  connectorSyncStatusRowSchema,
+  connectorTestResultSchema,
   importJobSchema,
   mappingTemplateSchema,
   monthlySummaryInputSchema,
@@ -43,6 +64,8 @@ import {
   newClientInputSchema,
   newMappingTemplateInputSchema,
   quarantineRowSchema,
+  referenceApiCacheRefreshResultSchema,
+  referenceApiSettingsSchema,
   runCsvImportInputSchema,
   runX12ImportInputSchema,
   x12ParseSummarySchema,
@@ -53,6 +76,10 @@ import {
   type Client,
   type ClientPatch,
   type ClientReport,
+  type ConnectorSettings,
+  type ConnectorSyncResult,
+  type ConnectorSyncStatusRow,
+  type ConnectorTestResult,
   type DaysInArTrendPoint,
   type DenialListRow,
   type ImportFileKind,
@@ -67,6 +94,9 @@ import {
   type PayerMixTrendPoint,
   type PayerVsPatientSplit,
   type QuarantineRow,
+  type ReferenceApiCacheRefreshResult,
+  type ReferenceApiSettings,
+  type ReferenceApiSettingsInput,
   type RunCsvImportInput,
   type RunX12ImportInput,
   type TopAgedClaimRow,
@@ -132,6 +162,7 @@ export class LocalDataService implements IDataService {
     this.meta = openMetaDb(this.paths.metaDbPath)
     this.ensureBuiltInTemplates()
     this.ensureDefaultBranding()
+    this.ensureDefaultReferenceApiSettings()
 
     const duckdb = await openDuckDb(this.paths.duckdbPath)
     this.duckdb = duckdb
@@ -200,6 +231,13 @@ export class LocalDataService implements IDataService {
     this.meta.prepare('INSERT INTO branding (id) VALUES (1)').run()
   }
 
+  /** Seeds the singleton reference-api-settings row (default: the reference deployment's local URL, enabled) on first launch. */
+  private ensureDefaultReferenceApiSettings(): void {
+    const existing = this.meta.prepare('SELECT id FROM reference_api_settings WHERE id = 1').get()
+    if (existing) return
+    this.meta.prepare('INSERT INTO reference_api_settings (id) VALUES (1)').run()
+  }
+
   // -------------------------------------------------------------------
   // Clients
   // -------------------------------------------------------------------
@@ -213,6 +251,7 @@ export class LocalDataService implements IDataService {
       contractRate: row.contract_rate ?? null,
       slaDaysToSubmit: row.sla_days_to_submit == null ? null : toNumber(row.sla_days_to_submit),
       reportRecipients: parseJsonArray(row.report_recipients),
+      state: (row.state as string | null) ?? null,
       active: Boolean(row.active),
       createdAt: toIsoDateTime(row.created_at),
       updatedAt: toIsoDateTime(row.updated_at)
@@ -245,8 +284,8 @@ export class LocalDataService implements IDataService {
   async createClient(input: NewClientInput): Promise<Client> {
     const validated = newClientInputSchema.parse(input)
     const reader = await this.duckdb.connection.runAndReadAll(
-      `INSERT INTO clients (code, name, contract_type, contract_rate, sla_days_to_submit, report_recipients, active)
-       VALUES (?, ?, ?, ?, ?, ?, true)
+      `INSERT INTO clients (code, name, contract_type, contract_rate, sla_days_to_submit, report_recipients, state, active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, true)
        RETURNING *`,
       [
         validated.code,
@@ -254,7 +293,8 @@ export class LocalDataService implements IDataService {
         validated.contractType ?? null,
         validated.contractRate ?? null,
         validated.slaDaysToSubmit ?? null,
-        JSON.stringify(validated.reportRecipients ?? [])
+        JSON.stringify(validated.reportRecipients ?? []),
+        validated.state ?? null
       ]
     )
     return this.mapClientRow(reader.getRowObjectsJS()[0])
@@ -276,12 +316,13 @@ export class LocalDataService implements IDataService {
           ? validated.slaDaysToSubmit
           : existing.slaDaysToSubmit,
       reportRecipients: validated.reportRecipients ?? existing.reportRecipients,
+      state: validated.state !== undefined ? validated.state : existing.state,
       active: validated.active ?? existing.active
     }
 
     const reader = await this.duckdb.connection.runAndReadAll(
       `UPDATE clients SET name = ?, contract_type = ?, contract_rate = ?, sla_days_to_submit = ?,
-         report_recipients = ?, active = ?, updated_at = CURRENT_TIMESTAMP
+         report_recipients = ?, state = ?, active = ?, updated_at = CURRENT_TIMESTAMP
        WHERE client_id = ?
        RETURNING *`,
       [
@@ -290,6 +331,7 @@ export class LocalDataService implements IDataService {
         merged.contractRate,
         merged.slaDaysToSubmit,
         JSON.stringify(merged.reportRecipients),
+        merged.state,
         merged.active,
         clientId
       ]
@@ -569,7 +611,8 @@ export class LocalDataService implements IDataService {
       denialsCount: row.denials_count == null ? null : toNumber(row.denials_count),
       notes: row.notes ?? null,
       updatedAt: toIsoDateTime(row.updated_at),
-      priorValues: row.prior_values ? JSON.parse(String(row.prior_values)) : null
+      priorValues: row.prior_values ? JSON.parse(String(row.prior_values)) : null,
+      source: row.source === 'synced' ? 'synced' : 'manual'
     })
   }
 
@@ -587,9 +630,9 @@ export class LocalDataService implements IDataService {
       `INSERT INTO monthly_summaries (
          client_id, period_month, charges, ins_collections, pt_collections, adjustments, open_ar,
          ar_aging_0_30, ar_aging_31_60, ar_aging_61_90, ar_aging_91_120, ar_aging_120_plus,
-         claims_submitted, denials_count, notes, prior_values
+         claims_submitted, denials_count, notes, prior_values, source
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')
        ON CONFLICT (client_id, period_month) DO UPDATE SET
          charges = excluded.charges,
          ins_collections = excluded.ins_collections,
@@ -605,7 +648,8 @@ export class LocalDataService implements IDataService {
          denials_count = excluded.denials_count,
          notes = excluded.notes,
          updated_at = now(),
-         prior_values = excluded.prior_values`,
+         prior_values = excluded.prior_values,
+         source = 'manual'`,
       [
         validated.clientId,
         validated.periodMonth,
@@ -829,11 +873,321 @@ export class LocalDataService implements IDataService {
   }
 
   // -------------------------------------------------------------------
+  // Generic RCM Platform REST connector (plan §3 bullet 3, Phase 2 chunk C)
+  // -------------------------------------------------------------------
+
+  private mapConnectorSettingsRow(row: DbRow | undefined): ConnectorSettings {
+    if (!row) {
+      return connectorSettingsSchema.parse({
+        baseUrl: null,
+        username: null,
+        hasPassword: false,
+        enabled: false,
+        passwordEncoding: null
+      })
+    }
+    return connectorSettingsSchema.parse({
+      baseUrl: (row.base_url as string | null) ?? null,
+      username: (row.username as string | null) ?? null,
+      hasPassword: Boolean(row.password_data),
+      enabled: Boolean(row.enabled),
+      passwordEncoding: (row.password_encoding as 'safeStorage' | 'plaintext' | null) ?? null
+    })
+  }
+
+  async getConnectorSettings(): Promise<ConnectorSettings> {
+    const row = this.meta.prepare('SELECT * FROM connector_settings WHERE id = 1').get() as
+      DbRow | undefined
+    return this.mapConnectorSettingsRow(row)
+  }
+
+  async saveConnectorSettings(input: {
+    baseUrl: string
+    username: string
+    enabled: boolean
+    encryptedPassword?: EncryptedSecretInput
+  }): Promise<ConnectorSettings> {
+    const existing = this.meta.prepare('SELECT * FROM connector_settings WHERE id = 1').get() as
+      DbRow | undefined
+    const passwordData =
+      input.encryptedPassword?.data ?? (existing?.password_data as string | undefined) ?? null
+    const passwordEncoding =
+      input.encryptedPassword?.encoding ??
+      (existing?.password_encoding as string | undefined) ??
+      null
+
+    this.meta
+      .prepare(
+        `INSERT INTO connector_settings (id, base_url, username, password_data, password_encoding, enabled, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?, datetime('now'))
+         ON CONFLICT (id) DO UPDATE SET
+           base_url = excluded.base_url, username = excluded.username,
+           password_data = excluded.password_data, password_encoding = excluded.password_encoding,
+           enabled = excluded.enabled, updated_at = excluded.updated_at`
+      )
+      .run(input.baseUrl, input.username, passwordData, passwordEncoding, input.enabled ? 1 : 0)
+
+    return this.getConnectorSettings()
+  }
+
+  async getEncryptedConnectorPassword(): Promise<EncryptedSecretInput | null> {
+    const row = this.meta.prepare('SELECT * FROM connector_settings WHERE id = 1').get() as
+      DbRow | undefined
+    if (!row?.password_data) return null
+    return {
+      data: String(row.password_data),
+      encoding: row.password_encoding === 'safeStorage' ? 'safeStorage' : 'plaintext'
+    }
+  }
+
+  async testConnectorConnection(
+    baseUrl: string,
+    username: string,
+    password: string
+  ): Promise<ConnectorTestResult> {
+    try {
+      await loginRcmPlatform({ baseUrl, username, password })
+      return connectorTestResultSchema.parse({ ok: true, message: 'Connected successfully.' })
+    } catch (error) {
+      const message = error instanceof RcmConnectorError ? error.message : String(error)
+      return connectorTestResultSchema.parse({ ok: false, message })
+    }
+  }
+
+  private upsertConnectorSyncState(entry: {
+    clientCode: string
+    periodMonth: string
+    status: 'ok' | 'error'
+    error: string | null
+    created: boolean
+  }): void {
+    this.meta
+      .prepare(
+        `INSERT INTO connector_sync_state (client_code, last_synced_period, last_synced_at, last_status, last_error, created_by_connector)
+         VALUES (?, ?, datetime('now'), ?, ?, ?)
+         ON CONFLICT (client_code) DO UPDATE SET
+           last_synced_period = excluded.last_synced_period,
+           last_synced_at = excluded.last_synced_at,
+           last_status = excluded.last_status,
+           last_error = excluded.last_error`
+      )
+      .run(entry.clientCode, entry.periodMonth, entry.status, entry.error, entry.created ? 1 : 0)
+  }
+
+  /**
+   * Pulls the portfolio list + each client's computed report for
+   * `periodMonth`, upserting `monthly_summaries`/`kpi_snapshots` with
+   * `source: 'synced'` (plan §3 bullet 3). Per-client failure isolation —
+   * one client's report failing to fetch/parse never aborts the sync for
+   * the rest, matching the batch-export queue's established pattern.
+   */
+  async runConnectorSync(
+    baseUrl: string,
+    username: string,
+    password: string,
+    periodMonth: string
+  ): Promise<ConnectorSyncResult> {
+    const config = { baseUrl, username, password }
+    const token = await loginRcmPlatform(config)
+    const period = monthPeriod(periodMonth)
+    const periodMonthCol = periodMonthColumn(periodMonth)
+
+    const portfolio = await fetchRcmPortfolio(config, token, period.start, period.end)
+
+    const results: ConnectorSyncResult['results'] = []
+    for (const row of portfolio.clients) {
+      try {
+        const { clientId, created } = await findOrCreateClientForSync(
+          this.duckdb.connection,
+          row.client,
+          row.name
+        )
+        const report = await fetchRcmClientReport(
+          config,
+          token,
+          row.client,
+          period.start,
+          period.end
+        )
+        await upsertMonthlySummaryFromReport(
+          this.duckdb.connection,
+          clientId,
+          periodMonthCol,
+          report
+        )
+        await upsertKpiSnapshotFromReport(this.duckdb.connection, clientId, period.end, report)
+        this.upsertConnectorSyncState({
+          clientCode: row.client,
+          periodMonth,
+          status: 'ok',
+          error: null,
+          created
+        })
+        results.push(
+          connectorSyncResultSchema.shape.results.element.parse({
+            clientCode: row.client,
+            ok: true,
+            created,
+            error: null
+          })
+        )
+      } catch (error) {
+        const message = error instanceof RcmConnectorError ? error.message : String(error)
+        this.upsertConnectorSyncState({
+          clientCode: row.client,
+          periodMonth,
+          status: 'error',
+          error: message,
+          created: false
+        })
+        results.push(
+          connectorSyncResultSchema.shape.results.element.parse({
+            clientCode: row.client,
+            ok: false,
+            created: false,
+            error: message
+          })
+        )
+      }
+    }
+
+    return connectorSyncResultSchema.parse({ periodMonth, results })
+  }
+
+  async listConnectorSyncStatus(): Promise<ConnectorSyncStatusRow[]> {
+    const rows = this.meta
+      .prepare('SELECT * FROM connector_sync_state ORDER BY client_code')
+      .all() as DbRow[]
+    return rows.map((row) =>
+      connectorSyncStatusRowSchema.parse({
+        clientCode: row.client_code,
+        lastSyncedPeriod: row.last_synced_period ?? null,
+        lastSyncedAt: row.last_synced_at ?? null,
+        lastStatus: row.last_status ?? null,
+        lastError: row.last_error ?? null,
+        createdByConnector: Boolean(row.created_by_connector)
+      })
+    )
+  }
+
+  // -------------------------------------------------------------------
+  // Reference & Benchmark API connector (beacon paragraph, Phase 2 chunk C)
+  // -------------------------------------------------------------------
+
+  async getReferenceApiSettings(): Promise<ReferenceApiSettings> {
+    const row = this.meta.prepare('SELECT * FROM reference_api_settings WHERE id = 1').get() as
+      DbRow | undefined
+    return referenceApiSettingsSchema.parse({
+      baseUrl: (row?.base_url as string | undefined) ?? 'http://127.0.0.1:8110',
+      enabled: row ? Boolean(row.enabled) : true,
+      lastHealthOk: row?.last_health_ok == null ? null : Boolean(row.last_health_ok),
+      lastHealthAt: (row?.last_health_at as string | null) ?? null
+    })
+  }
+
+  async saveReferenceApiSettings(input: ReferenceApiSettingsInput): Promise<ReferenceApiSettings> {
+    this.meta
+      .prepare(
+        `INSERT INTO reference_api_settings (id, base_url, enabled, updated_at)
+         VALUES (1, ?, ?, datetime('now'))
+         ON CONFLICT (id) DO UPDATE SET base_url = excluded.base_url, enabled = excluded.enabled, updated_at = excluded.updated_at`
+      )
+      .run(input.baseUrl, input.enabled ? 1 : 0)
+    return this.getReferenceApiSettings()
+  }
+
+  async testReferenceApiConnection(): Promise<ConnectorTestResult> {
+    const settings = await this.getReferenceApiSettings()
+    const ok = await checkReferenceApiHealth(settings.baseUrl)
+    this.meta
+      .prepare(
+        `UPDATE reference_api_settings SET last_health_ok = ?, last_health_at = datetime('now') WHERE id = 1`
+      )
+      .run(ok ? 1 : 0)
+    return connectorTestResultSchema.parse({
+      ok,
+      message: ok
+        ? 'Reference API is reachable.'
+        : 'Reference API did not respond (this is optional enrichment — the app degrades gracefully).'
+    })
+  }
+
+  /** Cached health check (plan: "no error spam") — re-verifies at most once per `maxAgeMs`, otherwise trusts the last cached result. */
+  private async getReferenceApiHealthCached(maxAgeMs = 60_000): Promise<boolean> {
+    const settings = await this.getReferenceApiSettings()
+    if (!settings.enabled) return false
+    if (settings.lastHealthAt) {
+      const ageMs = Date.now() - Date.parse(settings.lastHealthAt)
+      if (ageMs >= 0 && ageMs < maxAgeMs && settings.lastHealthOk !== null) {
+        return settings.lastHealthOk
+      }
+    }
+    const result = await this.testReferenceApiConnection()
+    return result.ok
+  }
+
+  async refreshReferenceApiCache(): Promise<ReferenceApiCacheRefreshResult> {
+    const settings = await this.getReferenceApiSettings()
+    if (!settings.enabled || !(await this.getReferenceApiHealthCached())) {
+      return referenceApiCacheRefreshResultSchema.parse({
+        carc: { cached: 0, notFound: 0 },
+        cpt: { cached: 0, notFound: 0 }
+      })
+    }
+    const [carc, cpt] = await Promise.all([
+      refreshCarcCache(this.duckdb.connection, settings.baseUrl),
+      refreshCptCache(this.duckdb.connection, settings.baseUrl)
+    ])
+    return referenceApiCacheRefreshResultSchema.parse({
+      carc: { cached: carc.cached, notFound: carc.notFound },
+      cpt: { cached: cpt.cached, notFound: cpt.notFound }
+    })
+  }
+
+  async getCarcDescriptions(codes: string[]): Promise<Record<string, string>> {
+    const map = await getCachedCarcDescriptions(this.duckdb.connection, codes)
+    return Object.fromEntries(map)
+  }
+
+  // -------------------------------------------------------------------
   // KPI engine / reports (plan §4)
   // -------------------------------------------------------------------
 
   async buildClientReport(clientId: number, periodMonth: string): Promise<ClientReport> {
-    return buildClientReportFn(this.duckdb.connection, clientId, periodMonth)
+    const benchmark = await this.tryBuildBenchmarkBlock(clientId, periodMonth)
+    return buildClientReportFn(this.duckdb.connection, clientId, periodMonth, { benchmark })
+  }
+
+  /**
+   * Assembles the benchmark block for one client (plan's beacon
+   * paragraph) — never for `listClientReportsForPeriod`'s whole
+   * portfolio, which would multiply the reference-API round trips by
+   * every active client on a screen that doesn't render the callout
+   * anyway (only the ClientDetail/PDF/PPTX/XLSX report doc does).
+   */
+  private async tryBuildBenchmarkBlock(
+    clientId: number,
+    periodMonth: string
+  ): Promise<ClientReport['benchmark']> {
+    try {
+      const settings = await this.getReferenceApiSettings()
+      if (!settings.enabled) return null
+      const healthy = await this.getReferenceApiHealthCached()
+      if (!healthy) return null
+      const client = await this.getClientById(clientId)
+      if (!client?.state) return null
+      return await buildBenchmarkBlock(
+        this.duckdb.connection,
+        settings.baseUrl,
+        client.state,
+        clientId,
+        periodMonth,
+        healthy
+      )
+    } catch {
+      // Optional enrichment (plan): any failure here degrades to "no benchmark," never an error surfaced to the report.
+      return null
+    }
   }
 
   async listClientReportsForPeriod(periodMonth: string): Promise<ClientReport[]> {

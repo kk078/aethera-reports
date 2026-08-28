@@ -26,6 +26,11 @@ import {
   clientPatchSchema,
   clientReportSchema,
   clientSchema,
+  connectorSettingsInputSchema,
+  connectorSettingsSchema,
+  connectorSyncResultSchema,
+  connectorSyncStatusRowSchema,
+  connectorTestResultSchema,
   daysInArTrendPointSchema,
   denialListRowSchema,
   exportClientReportInputSchema,
@@ -44,6 +49,10 @@ import {
   payerMixTrendPointSchema,
   payerVsPatientSplitSchema,
   quarantineRowSchema,
+  referenceApiCacheRefreshResultSchema,
+  referenceApiSettingsInputSchema,
+  referenceApiSettingsSchema,
+  runConnectorSyncInputSchema,
   runCsvImportInputSchema,
   runX12ImportInputSchema,
   topAgedClaimRowSchema,
@@ -303,6 +312,55 @@ export const ipcContract = {
   'exports:generateBatch': {
     request: batchExportInputSchema,
     response: batchExportResultSchema
+  },
+
+  // --- Generic RCM Platform REST connector (plan §3 bullet 3, Phase 2 chunk C) ---
+  'connector:getSettings': {
+    request: emptyRequestSchema,
+    response: connectorSettingsSchema
+  },
+  'connector:saveSettings': {
+    // Carries the plaintext password (once, at save time only) — the
+    // main-process handler encrypts it via `credentials.ts` before
+    // anything touches disk; `LocalDataService` only ever sees the
+    // already-encrypted blob (plan §7: "Credentials via Electron
+    // safeStorage").
+    request: connectorSettingsInputSchema,
+    response: connectorSettingsSchema
+  },
+  'connector:testConnection': {
+    request: emptyRequestSchema,
+    response: connectorTestResultSchema
+  },
+  'connector:syncNow': {
+    request: runConnectorSyncInputSchema,
+    response: connectorSyncResultSchema
+  },
+  'connector:syncStatus': {
+    request: emptyRequestSchema,
+    response: z.object({ rows: z.array(connectorSyncStatusRowSchema) })
+  },
+
+  // --- Reference & Benchmark API connector (beacon paragraph, Phase 2 chunk C) ---
+  'referenceApi:getSettings': {
+    request: emptyRequestSchema,
+    response: referenceApiSettingsSchema
+  },
+  'referenceApi:saveSettings': {
+    request: referenceApiSettingsInputSchema,
+    response: referenceApiSettingsSchema
+  },
+  'referenceApi:testConnection': {
+    request: emptyRequestSchema,
+    response: connectorTestResultSchema
+  },
+  'referenceApi:refreshCache': {
+    request: emptyRequestSchema,
+    response: referenceApiCacheRefreshResultSchema
+  },
+  'referenceApi:getCarcDescriptions': {
+    request: z.object({ codes: z.array(z.string()) }),
+    response: z.object({ descriptions: z.record(z.string(), z.string()) })
   }
 } as const
 

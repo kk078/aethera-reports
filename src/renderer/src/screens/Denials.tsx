@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Client, DenialListRow, MonthlyRateTrendPoint } from '../../../shared/domain'
-import { getDenialRateTrend, listClients, listDenials } from '../lib/api'
+import { getCarcDescriptions, getDenialRateTrend, listClients, listDenials } from '../lib/api'
 import DenialsParetoChart from '../components/charts/DenialsParetoChart'
 import TrendBarChart from '../components/charts/TrendBarChart'
 
@@ -28,6 +28,7 @@ function Denials(): React.JSX.Element {
   const [period, setPeriod] = useState(currentMonthValue())
   const [rows, setRows] = useState<DenialListRow[]>([])
   const [trend, setTrend] = useState<MonthlyRateTrendPoint[]>([])
+  const [carcDescriptions, setCarcDescriptions] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -43,6 +44,13 @@ function Denials(): React.JSX.Element {
       .then(([denialRows, ratePoints]) => {
         setRows(denialRows)
         setTrend(ratePoints)
+        const codes = Array.from(
+          new Set(denialRows.map((r) => r.carcCode).filter((c): c is string => !!c))
+        )
+        // Cached-only lookup (plan chunk C's last Denials bullet) — never
+        // blocks the screen; codes with no cache entry just show none.
+        if (codes.length > 0) void getCarcDescriptions(codes).then(setCarcDescriptions)
+        else setCarcDescriptions({})
       })
       .catch((err: unknown) => setError(String(err)))
       .finally(() => setLoading(false))
@@ -166,6 +174,7 @@ function Denials(): React.JSX.Element {
                     <th>DOS</th>
                     <th>Payer</th>
                     <th>CARC</th>
+                    <th>CARC description</th>
                     <th>Category</th>
                     <th>Root cause</th>
                     <th>Created</th>
@@ -179,6 +188,7 @@ function Denials(): React.JSX.Element {
                       <td>{row.dos ?? '—'}</td>
                       <td>{row.payerName}</td>
                       <td>{row.carcCode ?? '—'}</td>
+                      <td>{(row.carcCode && carcDescriptions[row.carcCode]) || '—'}</td>
                       <td>{row.category}</td>
                       <td>{row.rootCauseStage ?? '—'}</td>
                       <td>{new Date(row.createdAt).toLocaleDateString()}</td>

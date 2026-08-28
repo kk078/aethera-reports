@@ -10,6 +10,11 @@ import type {
   Client,
   ClientPatch,
   ClientReport,
+  ConnectorSettings,
+  ConnectorSettingsInput,
+  ConnectorSyncResult,
+  ConnectorSyncStatusRow,
+  ConnectorTestResult,
   DaysInArTrendPoint,
   DenialListRow,
   ExportFormat,
@@ -26,6 +31,9 @@ import type {
   PayerMixTrendPoint,
   PayerVsPatientSplit,
   QuarantineRow,
+  ReferenceApiCacheRefreshResult,
+  ReferenceApiSettings,
+  ReferenceApiSettingsInput,
   RunCsvImportInput,
   RunX12ImportInput,
   TopAgedClaimRow,
@@ -251,6 +259,56 @@ export async function getPayerMixTrend(
     monthsBack
   })
   return points
+}
+
+// --- Generic RCM Platform REST connector (plan §3 bullet 3) ---
+
+export function getConnectorSettings(): Promise<ConnectorSettings> {
+  return window.aethera.invoke('connector:getSettings', {})
+}
+
+export function saveConnectorSettings(input: ConnectorSettingsInput): Promise<ConnectorSettings> {
+  return window.aethera.invoke('connector:saveSettings', input)
+}
+
+export function testConnectorConnection(): Promise<ConnectorTestResult> {
+  return window.aethera.invoke('connector:testConnection', {})
+}
+
+export function syncConnectorNow(periodMonth: string): Promise<ConnectorSyncResult> {
+  return window.aethera.invoke('connector:syncNow', { periodMonth })
+}
+
+export async function getConnectorSyncStatus(): Promise<ConnectorSyncStatusRow[]> {
+  const { rows } = await window.aethera.invoke('connector:syncStatus', {})
+  return rows
+}
+
+// --- Reference & Benchmark API connector (beacon paragraph) ---
+
+export function getReferenceApiSettings(): Promise<ReferenceApiSettings> {
+  return window.aethera.invoke('referenceApi:getSettings', {})
+}
+
+export function saveReferenceApiSettings(
+  input: ReferenceApiSettingsInput
+): Promise<ReferenceApiSettings> {
+  return window.aethera.invoke('referenceApi:saveSettings', input)
+}
+
+export function testReferenceApiConnection(): Promise<ConnectorTestResult> {
+  return window.aethera.invoke('referenceApi:testConnection', {})
+}
+
+export function refreshReferenceApiCache(): Promise<ReferenceApiCacheRefreshResult> {
+  return window.aethera.invoke('referenceApi:refreshCache', {})
+}
+
+export async function getCarcDescriptions(codes: string[]): Promise<Record<string, string>> {
+  const { descriptions } = await window.aethera.invoke('referenceApi:getCarcDescriptions', {
+    codes
+  })
+  return descriptions
 }
 
 // --- Backups ---

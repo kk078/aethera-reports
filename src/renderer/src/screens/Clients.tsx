@@ -8,6 +8,7 @@ interface NewClientFormState {
   contractRate: string
   slaDaysToSubmit: string
   reportRecipients: string
+  state: string
 }
 
 const emptyForm: NewClientFormState = {
@@ -15,7 +16,8 @@ const emptyForm: NewClientFormState = {
   name: '',
   contractRate: '',
   slaDaysToSubmit: '',
-  reportRecipients: ''
+  reportRecipients: '',
+  state: ''
 }
 
 function parseRecipients(value: string): string[] {
@@ -57,7 +59,8 @@ function Clients(): React.JSX.Element {
         name: form.name.trim(),
         contractRate: form.contractRate ? Number(form.contractRate) : undefined,
         slaDaysToSubmit: form.slaDaysToSubmit ? Number(form.slaDaysToSubmit) : undefined,
-        reportRecipients: parseRecipients(form.reportRecipients)
+        reportRecipients: parseRecipients(form.reportRecipients),
+        state: form.state.trim() ? form.state.trim().toUpperCase() : undefined
       })
       setForm(emptyForm)
       await refresh()
@@ -138,6 +141,16 @@ function Clients(): React.JSX.Element {
             placeholder="billing@acme.example, ops@acme.example"
           />
         </label>
+        <label>
+          State (2-letter, optional — enables the Reference &amp; Benchmark connector&apos;s
+          callout)
+          <input
+            maxLength={2}
+            value={form.state}
+            onChange={(e) => setForm({ ...form, state: e.target.value.toUpperCase() })}
+            placeholder="NY"
+          />
+        </label>
         <button type="submit" disabled={submitting}>
           {submitting ? 'Adding…' : 'Add client'}
         </button>
@@ -156,6 +169,7 @@ function Clients(): React.JSX.Element {
               <th>Name</th>
               <th>Contract rate</th>
               <th>SLA (days)</th>
+              <th>State</th>
               <th>Recipients</th>
               <th>Status</th>
               <th />
@@ -170,6 +184,7 @@ function Clients(): React.JSX.Element {
                   {client.contractRate != null ? `${(client.contractRate * 100).toFixed(1)}%` : '—'}
                 </td>
                 <td>{client.slaDaysToSubmit ?? '—'}</td>
+                <td>{client.state ?? '—'}</td>
                 <td>{client.reportRecipients.join(', ') || '—'}</td>
                 <td>{client.active ? 'Active' : 'Inactive'}</td>
                 <td>

@@ -83,6 +83,7 @@ describe('ipc-contract: clients:create channel', () => {
       contractRate: null,
       slaDaysToSubmit: null,
       reportRecipients: [],
+      state: null,
       active: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
