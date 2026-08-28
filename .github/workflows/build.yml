@@ -67,9 +67,12 @@ jobs:
         shell: pwsh
         run: |
           $exe = "dist\win-unpacked\Aethera Reports.exe"
-          & $exe --smoke
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Smoke test failed with exit code $LASTEXITCODE"
+          # Electron is a GUI-subsystem binary: `& $exe` returns immediately
+          # and leaves $LASTEXITCODE unset. Start-Process -Wait gets the
+          # real exit code.
+          $p = Start-Process -FilePath $exe -ArgumentList '--smoke' -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) {
+            Write-Error "Smoke test failed with exit code $($p.ExitCode)"
             exit 1
           }
           Write-Host "Smoke test passed."
