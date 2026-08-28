@@ -8,6 +8,16 @@ directories:
 files:
   - '!**/.vscode/*'
   - '!src/*'
+  # vite/vite-node are runtime deps only for the server/ app (vite-node
+  # executes ?raw SQL imports there); the desktop bundles in out/ never
+  # require them, so keep the toolchain out of the installer.
+  - '!node_modules/vite/**'
+  - '!node_modules/vite-node/**'
+  - '!node_modules/esbuild/**'
+  - '!node_modules/@esbuild/**'
+  - '!node_modules/rollup/**'
+  - '!node_modules/@rollup/**'
+  - '!server/**'
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'

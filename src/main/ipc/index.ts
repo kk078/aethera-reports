@@ -11,11 +11,13 @@ import { registerAnalyticsHandlers } from './analytics'
 import { registerRcmConnectorHandlers } from './rcm-connector'
 import { registerReferenceApiHandlers } from './reference-api'
 import { registerAutomationHandlers } from './automation'
+import { registerDataModeHandlers } from './data-mode'
 import { registerPrintReadyHandler } from '../exporters/print-ready'
 import type { IDataService } from '../services/data-service'
 
-export function registerIpcHandlers(dataService: IDataService): void {
+export function registerIpcHandlers(dataService: IDataService, userDataDir: string): void {
   registerPingHandler()
+  registerDataModeHandlers(userDataDir)
   registerClientsHandlers(dataService)
   registerMappingTemplateHandlers(dataService)
   registerImportsHandlers(dataService)

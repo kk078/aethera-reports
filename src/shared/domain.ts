@@ -385,6 +385,21 @@ export const buildClientReportInputSchema = z.object({
 })
 export type BuildClientReportInput = z.infer<typeof buildClientReportInputSchema>
 
+/** `getClientFinancialTrend`'s request shape (a single, required client — unlike the analytics screens' nullable-clientId trend inputs below, which mean "all active clients"). Shared between `ipc-contract.ts`'s `reports:trend` channel and `rpc-contract.ts` (Phase 3 chunk E). */
+export const clientTrendInputSchema = z.object({
+  clientId: z.number().int().positive(),
+  endPeriodMonth: z.string().regex(/^\d{4}-\d{2}$/),
+  monthsBack: z.number().int().positive().max(24).optional()
+})
+export type ClientTrendInput = z.infer<typeof clientTrendInputSchema>
+
+export const financialTrendPointSchema = z.object({
+  month: z.string(),
+  grossCharges: z.number(),
+  totalCollections: z.number()
+})
+export type FinancialTrendPoint = z.infer<typeof financialTrendPointSchema>
+
 // ---------------------------------------------------------------------
 // Denials / A/R / Payers analytics screens (plan §5, Phase 2 chunk B).
 // Every query behind these types is scoped by a NULLABLE clientId —
@@ -795,3 +810,61 @@ export const exportAuditLogRowSchema = z.object({
   performedBy: z.string().nullable()
 })
 export type ExportAuditLogRow = z.infer<typeof exportAuditLogRowSchema>
+
+// ---------------------------------------------------------------------
+// Small shared request schemas (Phase 3 chunk E) — hoisted out of
+// `ipc-contract.ts` so both it and `rpc-contract.ts` (the server's HTTP
+// route table) build their per-method/channel request shapes from the
+// exact same objects instead of two independently-typed inline copies
+// that could quietly drift apart. Structurally identical to
+// `EncryptedSecretInput` in `services/data-service.ts` (declared
+// independently there so that Electron-free file never even has a type
+// edge to `credentials.ts` — see that file's comment for the precedent).
+// ---------------------------------------------------------------------
+
+export const emptyRequestSchema = z.object({})
+export type EmptyRequest = z.infer<typeof emptyRequestSchema>
+
+export const clientIdRequestSchema = z.object({ clientId: z.number().int().positive() })
+export type ClientIdRequest = z.infer<typeof clientIdRequestSchema>
+
+export const templateIdRequestSchema = z.object({ templateId: z.string().min(1) })
+export type TemplateIdRequest = z.infer<typeof templateIdRequestSchema>
+
+export const jobIdRequestSchema = z.object({ jobId: z.number().int().positive() })
+export type JobIdRequest = z.infer<typeof jobIdRequestSchema>
+
+export const filePathRequestSchema = z.object({ filePath: z.string().min(1) })
+export type FilePathRequest = z.infer<typeof filePathRequestSchema>
+
+export const encryptedSecretInputSchema = z.object({
+  data: z.string(),
+  encoding: z.enum(['safeStorage', 'plaintext'])
+})
+export type EncryptedSecretInputSchema = z.infer<typeof encryptedSecretInputSchema>
+
+// ---------------------------------------------------------------------
+// Data mode (Phase 3 chunk E): Local (the desktop's own DuckDB/SQLite,
+// default) vs. Server (a shared `server/` deployment over HTTP). Only
+// the connection's public shape (URL + username, never the password)
+// ever reaches the renderer — see `src/main/app-config.ts`.
+// ---------------------------------------------------------------------
+
+export const dataModeServerConnectionSchema = z.object({
+  baseUrl: z.string(),
+  username: z.string()
+})
+export type DataModeServerConnection = z.infer<typeof dataModeServerConnectionSchema>
+
+export const dataModeStatusSchema = z.object({
+  mode: z.enum(['local', 'server']),
+  server: dataModeServerConnectionSchema.nullable()
+})
+export type DataModeStatus = z.infer<typeof dataModeStatusSchema>
+
+export const setServerDataModeInputSchema = z.object({
+  baseUrl: z.string().min(1),
+  username: z.string().min(1),
+  password: z.string().min(1)
+})
+export type SetServerDataModeInput = z.infer<typeof setServerDataModeInputSchema>

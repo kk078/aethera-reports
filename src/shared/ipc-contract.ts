@@ -26,26 +26,33 @@ import {
   brandingInputSchema,
   brandingSchema,
   buildClientReportInputSchema,
+  clientIdRequestSchema,
   clientPatchSchema,
   clientReportSchema,
   clientSchema,
+  clientTrendInputSchema,
   connectorSettingsInputSchema,
   connectorSettingsSchema,
   connectorSyncResultSchema,
   connectorSyncStatusRowSchema,
   connectorTestResultSchema,
+  dataModeStatusSchema,
   daysInArTrendPointSchema,
   denialListRowSchema,
   dryRunResultSchema,
   emailSendQueueRowSchema,
   emailSettingsInputSchema,
   emailSettingsSchema,
+  emptyRequestSchema,
   exportAuditLogRowSchema,
   exportClientReportInputSchema,
   exportReportResultSchema,
+  filePathRequestSchema,
+  financialTrendPointSchema,
   getMonthlySummaryInputSchema,
   importFileKindSchema,
   importJobSchema,
+  jobIdRequestSchema,
   listDenialsInputSchema,
   mappingTemplateSchema,
   monthlyRateTrendPointSchema,
@@ -66,6 +73,8 @@ import {
   scanResultSchema,
   sendReportPackInputSchema,
   sendReportPackResultSchema,
+  setServerDataModeInputSchema,
+  templateIdRequestSchema,
   topAgedClaimRowSchema,
   x12ParseSummarySchema
 } from './domain'
@@ -86,12 +95,6 @@ const pingResponseSchema = z.object({
   /** Main process PID, useful for confirming the round trip left the renderer. */
   pid: z.number().int().positive()
 })
-
-const emptyRequestSchema = z.object({})
-
-const clientIdRequestSchema = z.object({ clientId: z.number().int().positive() })
-const templateIdRequestSchema = z.object({ templateId: z.string().min(1) })
-const jobIdRequestSchema = z.object({ jobId: z.number().int().positive() })
 
 const fuzzyMatchSuggestionSchema = z.object({
   sourceHeader: z.string(),
@@ -173,7 +176,7 @@ export const ipcContract = {
     response: z.object({ filePath: z.string().nullable() })
   },
   'importJobs:peekHeaders': {
-    request: z.object({ filePath: z.string().min(1) }),
+    request: filePathRequestSchema,
     response: z.object({ headers: z.array(z.string()) })
   },
   'importJobs:suggestMapping': {
@@ -198,11 +201,11 @@ export const ipcContract = {
 
   // --- X12 835/837 (plan §3 bullet 2, Phase 2) ---
   'importJobs:detectFileKind': {
-    request: z.object({ filePath: z.string().min(1) }),
+    request: filePathRequestSchema,
     response: z.object({ kind: importFileKindSchema })
   },
   'importJobs:previewX12': {
-    request: z.object({ filePath: z.string().min(1) }),
+    request: filePathRequestSchema,
     response: z.object({ summary: x12ParseSummarySchema })
   },
   'importJobs:runX12': {
@@ -230,16 +233,8 @@ export const ipcContract = {
     response: z.object({ reports: z.array(clientReportSchema) })
   },
   'reports:trend': {
-    request: z.object({
-      clientId: z.number().int().positive(),
-      endPeriodMonth: z.string().regex(/^\d{4}-\d{2}$/),
-      monthsBack: z.number().int().positive().max(24).optional()
-    }),
-    response: z.object({
-      points: z.array(
-        z.object({ month: z.string(), grossCharges: z.number(), totalCollections: z.number() })
-      )
-    })
+    request: clientTrendInputSchema,
+    response: z.object({ points: z.array(financialTrendPointSchema) })
   },
 
   // --- Backups / integrity (Risk 5, restore added step 9) ---
@@ -448,6 +443,31 @@ export const ipcContract = {
   'automation:listExportAuditLog': {
     request: emptyRequestSchema,
     response: z.object({ rows: z.array(exportAuditLogRowSchema) })
+  },
+
+  // --- Data mode: Local / Server (plan's Phase 3 addendum, chunk E) ---
+  'dataMode:get': {
+    request: emptyRequestSchema,
+    response: dataModeStatusSchema
+  },
+  'dataMode:setLocal': {
+    request: emptyRequestSchema,
+    response: dataModeStatusSchema
+  },
+  'dataMode:setServer': {
+    // The plaintext password never touches disk here — the handler
+    // encrypts it via `credentials.ts` before it reaches
+    // `app-config.ts`, same pattern as the RCM connector/email settings.
+    request: setServerDataModeInputSchema,
+    response: dataModeStatusSchema
+  },
+  'dataMode:testServerConnection': {
+    request: setServerDataModeInputSchema,
+    response: connectorTestResultSchema
+  },
+  'app:restart': {
+    request: emptyRequestSchema,
+    response: z.object({ ok: z.boolean() })
   }
 } as const
 

@@ -35,19 +35,30 @@
     "e2e:connector-sync": "vite-node scripts/e2e-connector-sync.ts",
     "e2e:watch-folder": "vite-node scripts/e2e-watch-folder.ts",
     "crosscheck:rcm": "vite-node scripts/crosscheck-rcm.ts",
-    "cli": "vite-node src/main/cli-entry.ts --"
+    "cli": "vite-node src/main/cli-entry.ts --",
+    "server": "vite-node server/src/index.ts",
+    "server:user": "vite-node server/src/cli.ts --",
+    "e2e:server-mode": "vite-node scripts/e2e-server-mode.ts"
   },
   "dependencies": {
     "@duckdb/node-api": "1.5.5-r.4",
     "@electron-toolkit/utils": "^4.0.0",
+    "@fastify/jwt": "^10.2.2",
+    "@fastify/multipart": "^10.1.1",
+    "@fastify/rate-limit": "^11.2.0",
+    "bcryptjs": "^3.0.3",
     "better-sqlite3": "13.0.3",
     "chokidar": "^5.0.0",
     "echarts": "^6.1.0",
     "exceljs": "^4.4.0",
+    "fastify": "^5.12.1",
+    "fastify-plugin": "^6.0.0",
     "nodemailer": "^9.0.6",
     "papaparse": "^5.7.0",
     "pptxgenjs": "^4.0.1",
     "react-router-dom": "^7.18.2",
+    "vite": "^7.2.6",
+    "vite-node": "^6.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -73,8 +84,6 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "typescript": "^5.9.3",
-    "vite": "^7.2.6",
-    "vite-node": "^6.0.0",
     "vitest": "^4.1.11"
   }
 }

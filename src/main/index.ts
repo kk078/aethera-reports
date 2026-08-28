@@ -8,7 +8,10 @@ import { registerIpcHandlers } from './ipc'
 import { helloQueryDuckDb } from './db/duckdb'
 import { helloQuerySqlite } from './db/meta'
 import { LocalDataService } from './services/local-data-service'
+import { RemoteDataService } from './services/remote-data-service'
 import type { IDataService } from './services/data-service'
+import { loadAppConfig } from './app-config'
+import { decryptCredential } from './credentials'
 import { loadRenderer } from './window-target'
 import { runCli } from './cli'
 import { parseCliArgs } from './cli-args'
@@ -39,6 +42,28 @@ function resolveDataServicePaths(): {
     metaDbPath: join(userDataDir, 'meta.db'),
     backupsDir: join(userDataDir, 'backups')
   }
+}
+
+/**
+ * Builds whichever `IDataService` `app-config.json` currently selects
+ * (plan's Phase 3 addendum: "Data mode: Local / Server") — every other
+ * caller (the UI via IPC, `--generate`/`--import`, automation) is
+ * written against the interface, not a concrete class, so this is the
+ * ONLY place that decides which one backs a given launch.
+ */
+async function createDataService(userDataDir: string): Promise<IDataService> {
+  const config = loadAppConfig(userDataDir)
+  if (config.dataMode === 'server' && config.server) {
+    const password = config.server.encryptedPassword
+      ? decryptCredential(config.server.encryptedPassword)
+      : ''
+    return new RemoteDataService({
+      baseUrl: config.server.baseUrl,
+      username: config.server.username,
+      password
+    })
+  }
+  return LocalDataService.create(resolveDataServicePaths())
 }
 
 function createWindow(): void {
@@ -166,22 +191,24 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  const userDataDir = app.getPath('userData')
+
   try {
-    dataService = await LocalDataService.create(resolveDataServicePaths())
+    dataService = await createDataService(userDataDir)
   } catch (error) {
-    console.error('[db] failed to initialize LocalDataService:', error)
+    console.error('[db] failed to initialize the data service:', error)
     app.exit(1)
     return
   }
 
-  registerIpcHandlers(dataService)
+  registerIpcHandlers(dataService, userDataDir)
 
   // Headless CLI mode (plan §11): --generate / --import run without a
   // window and reuse the same IDataService/exporter paths as the UI.
   // The offscreen PDF export window still needs the IPC handlers
   // registered above (it's a real renderer process, just never shown).
   if (isCli) {
-    const logger = createCliLogger(app.getPath('userData'))
+    const logger = createCliLogger(userDataDir)
     try {
       const exitCode = await runCli(dataService, cliArgs, logger)
       dataService.close()
@@ -200,7 +227,7 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 
-  void startAutomation(dataService, app.getPath('userData'))
+  void startAutomation(dataService, userDataDir)
 })
 
 app.on('window-all-closed', () => {

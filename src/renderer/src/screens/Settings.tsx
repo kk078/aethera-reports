@@ -4,6 +4,7 @@ import type {
   BackupStatus,
   Client,
   ConnectorSyncStatusRow,
+  DataModeStatus,
   EmailSettings,
   MappingTemplate,
   ReferenceApiCacheRefreshResult
@@ -14,6 +15,7 @@ import {
   getBranding,
   getConnectorSettings,
   getConnectorSyncStatus,
+  getDataMode,
   getEmailSettings,
   getReferenceApiSettings,
   listClients,
@@ -21,6 +23,7 @@ import {
   pickAndSetBrandingLogo,
   ping,
   refreshReferenceApiCache,
+  restartApp,
   restoreLatestBackup,
   runBackupNow,
   saveConnectorSettings,
@@ -29,10 +32,13 @@ import {
   scanInboxNow,
   setAutomationInboxRoot,
   setFolderTemplatePin,
+  setLocalDataMode,
+  setServerDataMode,
   syncConnectorNow,
   testConnectorConnection,
   testEmailConnection,
   testReferenceApiConnection,
+  testServerDataModeConnection,
   updateBranding
 } from '../lib/api'
 
@@ -327,6 +333,153 @@ function ReferenceApiSection(): React.JSX.Element {
           Refresh cache now
         </button>
       </form>
+    </>
+  )
+}
+
+/**
+ * Data mode (plan's Phase 3 addendum, chunk E): Local (this install's own
+ * DuckDB/SQLite, the default) or Server (a shared `server/` deployment
+ * over HTTP — see `docs/server-mode.md`). Switching modes changes which
+ * `IDataService` the main process builds at launch, so it only takes
+ * effect after a restart — this section walks the user through that
+ * explicitly rather than restarting out from under them.
+ */
+function DataModeSection(): React.JSX.Element {
+  const [status, setStatus] = useState<DataModeStatus | null>(null)
+  const [baseUrl, setBaseUrl] = useState('')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState<string | null>(null)
+  const [switched, setSwitched] = useState(false)
+
+  function refresh(): void {
+    getDataMode().then((s) => {
+      setStatus(s)
+      if (s.server) {
+        setBaseUrl(s.server.baseUrl)
+        setUsername(s.server.username)
+      }
+    })
+  }
+
+  useEffect(refresh, [])
+
+  async function handleTest(): Promise<void> {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const result = await testServerDataModeConnection({
+        baseUrl: baseUrl.trim(),
+        username: username.trim(),
+        password
+      })
+      setMessage(result.ok ? `✓ ${result.message}` : `✗ ${result.message}`)
+    } catch (error) {
+      setMessage(String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleSwitchToServer(event: React.FormEvent): Promise<void> {
+    event.preventDefault()
+    setBusy(true)
+    setMessage(null)
+    try {
+      const updated = await setServerDataMode({
+        baseUrl: baseUrl.trim(),
+        username: username.trim(),
+        password
+      })
+      setStatus(updated)
+      setPassword('')
+      setSwitched(true)
+      setMessage('Switched to Server mode — restart the app for it to take effect.')
+    } catch (error) {
+      setMessage(String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleSwitchToLocal(): Promise<void> {
+    setBusy(true)
+    setMessage(null)
+    try {
+      const updated = await setLocalDataMode()
+      setStatus(updated)
+      setSwitched(true)
+      setMessage('Switched to Local mode — restart the app for it to take effect.')
+    } catch (error) {
+      setMessage(String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleRestart(): Promise<void> {
+    await restartApp()
+  }
+
+  if (!status) return <h2>Data mode</h2>
+
+  return (
+    <>
+      <h2>Data mode</h2>
+      <p>
+        <strong>Local</strong> (default) keeps every client&apos;s data in this install&apos;s own
+        database. <strong>Server</strong> points this install at a shared{' '}
+        <code>aethera-reports</code> server (see <code>docs/server-mode.md</code>) so several staff
+        machines see the same data — reports, exports, and automation all keep working exactly the
+        same either way.
+      </p>
+      <p>
+        Current mode: <strong>{status.mode === 'server' ? 'Server' : 'Local'}</strong>
+        {status.server && ` (${status.server.baseUrl} as "${status.server.username}")`}
+      </p>
+
+      {message && <p>{message}</p>}
+
+      {switched && (
+        <p>
+          <button type="button" onClick={() => void handleRestart()}>
+            Restart now
+          </button>
+        </p>
+      )}
+
+      {status.mode === 'local' ? (
+        <form className="client-form" onSubmit={(e) => void handleSwitchToServer(e)}>
+          <label>
+            Server URL
+            <input
+              placeholder="https://reports.example.internal:8787"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+            />
+          </label>
+          <label>
+            Username
+            <input value={username} onChange={(e) => setUsername(e.target.value)} />
+          </label>
+          <label>
+            Password
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          </label>
+          <button type="button" disabled={busy} onClick={() => void handleTest()}>
+            Test connection
+          </button>
+          <button type="submit" disabled={busy || !baseUrl || !username || !password}>
+            Switch to Server
+          </button>
+        </form>
+      ) : (
+        <button type="button" disabled={busy} onClick={() => void handleSwitchToLocal()}>
+          Switch to Local
+        </button>
+      )}
     </>
   )
 }
@@ -820,6 +973,7 @@ function Settings(): React.JSX.Element {
       <WatchFolderSection />
       <EmailSection />
       <BackupsSection />
+      <DataModeSection />
 
       <h2>Diagnostics</h2>
       <p>Verifies the preload → zod IPC → main round trip.</p>

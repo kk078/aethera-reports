@@ -45,6 +45,12 @@ userData/
 # (sample-data/ holds only synthetic fixtures and IS committed.)
 local-data/
 
+# Shared server (Phase 3 chunk E) — its data dir (analytics.duckdb,
+# meta.db, users.db, uploaded files, backups) and generated JWT secret
+# never belong in the repo, same rationale as userData/ above.
+server-data/
+jwt-secret.txt
+
 # Secret-scan tool caches.
 .gitleaks-report.json
 

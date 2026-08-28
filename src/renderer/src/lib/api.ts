@@ -18,6 +18,7 @@ import type {
   ConnectorSyncResult,
   ConnectorSyncStatusRow,
   ConnectorTestResult,
+  DataModeStatus,
   DaysInArTrendPoint,
   DenialListRow,
   DryRunResult,
@@ -46,6 +47,7 @@ import type {
   RunX12ImportInput,
   ScanResult,
   SendReportPackResult,
+  SetServerDataModeInput,
   TopAgedClaimRow,
   X12ParseSummary,
   BackupStatus
@@ -470,4 +472,28 @@ export function sendReportPackNow(
 export async function listExportAuditLog(): Promise<ExportAuditLogRow[]> {
   const { rows } = await window.aethera.invoke('automation:listExportAuditLog', {})
   return rows
+}
+
+// --- Data mode: Local / Server (plan's Phase 3 addendum, chunk E) ---
+
+export function getDataMode(): Promise<DataModeStatus> {
+  return window.aethera.invoke('dataMode:get', {})
+}
+
+export function setLocalDataMode(): Promise<DataModeStatus> {
+  return window.aethera.invoke('dataMode:setLocal', {})
+}
+
+export function setServerDataMode(input: SetServerDataModeInput): Promise<DataModeStatus> {
+  return window.aethera.invoke('dataMode:setServer', input)
+}
+
+export function testServerDataModeConnection(
+  input: SetServerDataModeInput
+): Promise<ConnectorTestResult> {
+  return window.aethera.invoke('dataMode:testServerConnection', input)
+}
+
+export async function restartApp(): Promise<void> {
+  await window.aethera.invoke('app:restart', {})
 }

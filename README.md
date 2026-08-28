@@ -96,8 +96,8 @@ the "More info → Run anyway" workaround plus published checksums.
 ## Project layout
 
 See `CONTRIBUTING.md` for the full directory map and architectural notes
-(the `IDataService` seam that keeps a future shared/server mode possible
-without a rewrite).
+(the `IDataService` seam that lets `server/` reuse the desktop app's
+importers/KPI engine unmodified — see "Shared server mode" below).
 
 ## Automation
 
@@ -197,6 +197,25 @@ schtasks /create /tn "Aethera Reports - Monthly Generate" ^
   /tr "\"C:\Program Files\Aethera Reports\Aethera Reports.exe\" --generate --period 2026-07 --clients all --formats pdf" ^
   /sc monthly /d 3 /st 06:00
 ```
+
+## Shared server mode
+
+Aethera Reports is local-first by default (each install keeps its own
+database), but a small optional server (`server/`) lets several staff
+machines share one dataset instead — same importers, same KPI engine,
+same `IDataService` interface, just reached over HTTP instead of opened
+as local files. The desktop app's **Settings → Data mode** switches
+between them; nothing else in the app changes.
+
+```bash
+npm run server                                       # run the server (default: 127.0.0.1:8787)
+npm run server:user -- add <username> <password>      # seed a staff login
+```
+
+See **`docs/server-mode.md`** for full setup, Docker (`server/Dockerfile`
+
+- `server/docker-compose.yml`), and LAN/Tailscale network-exposure
+  guidance.
 
 ## Contributing
 

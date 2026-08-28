@@ -23,10 +23,11 @@ re-run `npm run postinstall` (or delete `node_modules` and reinstall).
 
 ```
 src/
-├── shared/       # pure TS + zod, compiled into both main and renderer
+├── shared/       # pure TS + zod, compiled into main, renderer, AND server/
 ├── main/         # Electron main process: db, ipc, services, importers, kpi, exporters
 ├── preload/      # contextBridge — the ONLY code with access to both Node and window
 └── renderer/     # React app (screens, components, state)
+server/           # shared server mode (Phase 3) — Fastify, no Electron; see docs/server-mode.md
 test/             # vitest
 sample-data/      # synthetic fixtures only — see Data policy below
 ```
@@ -38,8 +39,17 @@ before the main process acts on it.
 
 `src/main/services`, `src/main/importers`, and `src/main/kpi` must stay
 free of Electron imports (enforced by an ESLint `no-restricted-imports`
-rule) — they are plain TypeScript with a database handle, so an eventual
-server package can reuse them unchanged behind a `RemoteDataService`.
+rule) — they are plain TypeScript with a database handle, which is what
+lets `server/` import `LocalDataService`, the DuckDB migrations, and the
+importers directly, unmodified, with zero code moved or duplicated.
+`server/`'s own HTTP surface (`src/shared/rpc-contract.ts`) is a second,
+method-keyed map alongside `ipc-contract.ts`'s channel-keyed one — both
+build their request/response shapes out of the same `domain.ts` schemas,
+so there's one source of truth for a given payload shape regardless of
+which transport carries it. `src/main/services/remote-data-service.ts`
+is the desktop-side mirror: it implements `IDataService` over HTTP
+against `server/`, so Settings' "Data mode: Server" is a drop-in swap for
+everything above the `IDataService` seam.
 
 ## Commands
 
@@ -50,6 +60,8 @@ npm run lint         # eslint
 npm run format       # prettier --write
 npm run build        # electron-vite build (also typechecks)
 npm run lint:secrets # gitleaks detect (see below)
+npm run server       # shared server mode (Phase 3) — see docs/server-mode.md
+npm run server:user  # -- add/passwd/remove/list staff logins for the server
 ```
 
 ## Data policy — nothing real ever gets committed
