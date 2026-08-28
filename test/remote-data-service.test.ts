@@ -199,14 +199,15 @@ describe('RemoteDataService', () => {
   describe('token refresh on 401', () => {
     it('re-logs-in transparently once the JWT has expired', async () => {
       await app.close() // replace with a short-lived-token server for this one test
-      // Long enough that the retry's freshly-issued token is still valid
-      // for the few milliseconds it takes to use it, short enough to
-      // reliably expire within this test's own wall-clock wait below.
-      ;({ app, baseUrl } = await startServer(dbDir, service, usersDb, '750ms'))
+      // The TTL must outlive the retry path (re-login incl. bcrypt verify +
+      // the retried request) even on a slow CI runner — 750ms proved flaky
+      // there (the freshly-issued token expired before the retried request
+      // was verified). 5s is still short enough to expire in-test.
+      ;({ app, baseUrl } = await startServer(dbDir, service, usersDb, '5s'))
 
       const remote = new RemoteDataService({ baseUrl, username: USERNAME, password: PASSWORD })
       await remote.createClient({ code: 'EXPIRECO', name: 'Expiry Co' }) // issues the first token
-      await new Promise((resolve) => setTimeout(resolve, 900)) // let that first token expire
+      await new Promise((resolve) => setTimeout(resolve, 5500)) // let that first token expire
 
       // Without token-refresh-on-401 this would throw; with it, it just
       // works — RemoteDataService re-logs-in on the 401 and retries once.
