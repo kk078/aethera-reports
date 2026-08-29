@@ -145,7 +145,52 @@ function Portfolio(): React.JSX.Element {
 
       {error && <p className="form-error">{error}</p>}
       {loading ? (
-        <p>Loading…</p>
+        <table className="data-table" aria-busy="true" aria-label="Loading portfolio">
+          <thead>
+            <tr>
+              <th />
+              <th>Client</th>
+              <th>Gross charges</th>
+              <th>Net collection rate</th>
+              <th>Days in A/R</th>
+              <th>Denial rate</th>
+              <th>Trend</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <tr key={i}>
+                <td>
+                  <span
+                    className="skeleton"
+                    style={{ display: 'inline-block', width: 14, height: 14 }}
+                  />
+                </td>
+                <td>
+                  <span
+                    className="skeleton"
+                    style={{ display: 'block', width: '70%', height: 14 }}
+                  />
+                </td>
+                <td>
+                  <span className="skeleton" style={{ display: 'block', width: 64, height: 14 }} />
+                </td>
+                <td>
+                  <span className="skeleton" style={{ display: 'block', width: 48, height: 14 }} />
+                </td>
+                <td>
+                  <span className="skeleton" style={{ display: 'block', width: 32, height: 14 }} />
+                </td>
+                <td>
+                  <span className="skeleton" style={{ display: 'block', width: 48, height: 14 }} />
+                </td>
+                <td>
+                  <span className="skeleton" style={{ display: 'block', width: 90, height: 20 }} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       ) : rows.length === 0 ? (
         <p>No active clients yet.</p>
       ) : (

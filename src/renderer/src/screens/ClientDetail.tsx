@@ -208,7 +208,19 @@ function ClientDetail(): React.JSX.Element {
       {exportMessage && <p>{exportMessage}</p>}
 
       {error && <p className="form-error">{error}</p>}
-      {loading && <p>Loading…</p>}
+      {loading && (
+        <div className="kpi-card-grid" aria-busy="true" aria-label="Loading client report">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div className="kpi-card" key={i}>
+              <span className="skeleton" style={{ display: 'block', width: '60%', height: 11 }} />
+              <span
+                className="skeleton"
+                style={{ display: 'block', width: '80%', height: 22, marginTop: 8 }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
 
       {report && branding && !loading && (
         <div className="report-doc-preview-frame">

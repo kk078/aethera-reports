@@ -18,7 +18,7 @@ const ArAgingChart = forwardRef<EChartHandle, ArAgingChartProps>(function ArAgin
 ) {
   const theme = useChartTheme()
   const option: EChartsOption = {
-    color: [theme.categorical[0]],
+    color: [theme.categorical[1]],
     textStyle: { color: theme.textSecondary },
     grid: { left: 64, right: 16, top: 16, bottom: 32 },
     tooltip: { trigger: 'axis', valueFormatter: (v) => `$${Number(v).toLocaleString()}` },

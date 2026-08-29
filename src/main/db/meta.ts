@@ -57,7 +57,7 @@ export function initMetaSchema(db: Database.Database): void {
       id INTEGER PRIMARY KEY CHECK (id = 1),
       firm_name TEXT NOT NULL DEFAULT 'Aethera Reports',
       logo_path TEXT,
-      primary_color TEXT NOT NULL DEFAULT '#7c93ee',
+      primary_color TEXT NOT NULL DEFAULT '#005bbf',
       secondary_color TEXT NOT NULL DEFAULT '#222222',
       footer_disclaimer TEXT,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))

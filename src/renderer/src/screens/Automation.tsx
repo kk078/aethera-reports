@@ -19,6 +19,7 @@ import {
   runAutomationRuleNow,
   saveAutomationRule
 } from '../lib/api'
+import StatusChip from '../components/StatusChip'
 
 const ALL_FORMATS: ExportFormat[] = ['pdf', 'pptx', 'xlsx']
 
@@ -385,7 +386,9 @@ function Automation(): React.JSX.Element {
               <tr key={job.jobId}>
                 <td>#{job.jobId}</td>
                 <td>{job.fileName ?? '—'}</td>
-                <td>{job.status}</td>
+                <td>
+                  <StatusChip status={job.status} />
+                </td>
                 <td>{job.rowsLoaded}</td>
                 <td>{job.rowsSkipped}</td>
                 <td>{new Date(job.startedAt).toLocaleString()}</td>
@@ -439,7 +442,9 @@ function Automation(): React.JSX.Element {
                 <td>{row.clientCode}</td>
                 <td>{row.periodMonth}</td>
                 <td>{row.recipients.join(', ')}</td>
-                <td>{row.status}</td>
+                <td>
+                  <StatusChip status={row.status} />
+                </td>
                 <td>{row.attempts}</td>
                 <td>{row.lastError ?? '—'}</td>
                 <td>

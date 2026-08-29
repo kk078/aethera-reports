@@ -28,21 +28,21 @@ export interface ChartTheme {
   axisLine: string
 }
 
-/** Single-hue sequential ramp (blue, light->dark step 100->700) for magnitude encodings — one static ramp per the dataviz skill's reference (not mode-branched; the lightest steps are allowed to recede toward either surface). */
+/** Single-hue sequential ramp (Healthcare Blue, light->dark step 100->700) for magnitude encodings — anchored on the M3 `primary` (#005bbf) — one static ramp per the dataviz skill's reference (not mode-branched; the lightest steps are allowed to recede toward either surface). */
 const SEQUENTIAL_BLUE = [
-  '#cde2fb',
-  '#b7d3f6',
-  '#9ec5f4',
-  '#86b6ef',
-  '#6da7ec',
-  '#5598e7',
-  '#3987e5',
-  '#2a78d6',
-  '#256abf',
-  '#1c5cab',
-  '#184f95',
-  '#104281',
-  '#0d366b'
+  '#d7e6fb',
+  '#c1d9f8',
+  '#a9caf5',
+  '#8fbaf1',
+  '#73a9ec',
+  '#5497e6',
+  '#3283de',
+  '#1770d1',
+  '#0d63bd',
+  '#0a54a3',
+  '#084588',
+  '#06376d',
+  '#042a54'
 ] as const
 
 function cssVar(name: string, fallback: string): string {
@@ -55,32 +55,30 @@ function cssVar(name: string, fallback: string): string {
 export function readChartTheme(): ChartTheme {
   return {
     categorical: [
-      cssVar('--chart-cat-1', '#2a78d6'),
-      cssVar('--chart-cat-2', '#eb6834'),
-      cssVar('--chart-cat-3', '#1baf7a'),
-      cssVar('--chart-cat-4', '#eda100'),
-      cssVar('--chart-cat-5', '#e87ba4'),
-      cssVar('--chart-cat-6', '#008300'),
-      cssVar('--chart-cat-7', '#4a3aa7'),
-      cssVar('--chart-cat-8', '#e34948')
+      cssVar('--chart-cat-1', '#d93025'),
+      cssVar('--chart-cat-2', '#005bbf'),
+      cssVar('--chart-cat-3', '#f29900'),
+      cssVar('--chart-cat-4', '#7c5cbf'),
+      cssVar('--chart-cat-5', '#9e4300'),
+      cssVar('--chart-cat-6', '#1e8e3e')
     ],
     sequentialBlue: SEQUENTIAL_BLUE,
     diverging: {
-      negative: cssVar('--chart-diverging-negative', '#2a78d6'),
-      neutral: cssVar('--chart-diverging-neutral', '#f0efec'),
-      positive: cssVar('--chart-diverging-positive', '#e34948')
+      negative: cssVar('--chart-diverging-negative', '#005bbf'),
+      neutral: cssVar('--chart-diverging-neutral', '#e6e8f2'),
+      positive: cssVar('--chart-diverging-positive', '#f29900')
     },
     status: {
-      good: cssVar('--status-good', '#0ca30c'),
-      warning: cssVar('--status-warning', '#fab219'),
-      serious: cssVar('--status-serious', '#ec835a'),
-      critical: cssVar('--status-critical', '#d03b3b')
+      good: cssVar('--status-good', '#1e8e3e'),
+      warning: cssVar('--status-warning', '#f29900'),
+      serious: cssVar('--status-serious', '#9e4300'),
+      critical: cssVar('--status-critical', '#d93025')
     },
     surface: cssVar('--chart-surface', '#ffffff'),
-    textPrimary: cssVar('--chart-text', '#1b2320'),
-    textSecondary: cssVar('--chart-text-secondary', '#5b6660'),
-    gridLine: cssVar('--chart-grid', '#e1e0d9'),
-    axisLine: cssVar('--chart-axis', '#c3c2b7')
+    textPrimary: cssVar('--chart-text', '#191c23'),
+    textSecondary: cssVar('--chart-text-secondary', '#414754'),
+    gridLine: cssVar('--chart-grid', '#e3e5ee'),
+    axisLine: cssVar('--chart-axis', '#c4c7c5')
   }
 }
 

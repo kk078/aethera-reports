@@ -18,8 +18,8 @@ function Sparkline({ values }: SparklineProps): React.JSX.Element {
         type: 'line',
         data: values,
         showSymbol: false,
-        lineStyle: { width: 2, color: theme.categorical[0] },
-        areaStyle: { color: theme.categorical[0], opacity: 0.12 }
+        lineStyle: { width: 2, color: theme.categorical[1] },
+        areaStyle: { color: theme.categorical[1], opacity: 0.12 }
       }
     ]
   }

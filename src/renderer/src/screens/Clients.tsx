@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Client } from '../../../shared/domain'
 import { createClient, deactivateClient, listClients, updateClient } from '../lib/api'
+import SideSheet from '../components/SideSheet'
 
 interface NewClientFormState {
   code: string
@@ -20,11 +21,29 @@ const emptyForm: NewClientFormState = {
   state: ''
 }
 
+interface EditFormState {
+  name: string
+  contractRate: string
+  slaDaysToSubmit: string
+  reportRecipients: string
+  state: string
+}
+
 function parseRecipients(value: string): string[] {
   return value
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean)
+}
+
+function toEditForm(client: Client): EditFormState {
+  return {
+    name: client.name,
+    contractRate: client.contractRate != null ? String(client.contractRate) : '',
+    slaDaysToSubmit: client.slaDaysToSubmit != null ? String(client.slaDaysToSubmit) : '',
+    reportRecipients: client.reportRecipients.join(', '),
+    state: client.state ?? ''
+  }
 }
 
 function Clients(): React.JSX.Element {
@@ -33,8 +52,19 @@ function Clients(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState<NewClientFormState>(emptyForm)
   const [submitting, setSubmitting] = useState(false)
-  const [editingRecipientsId, setEditingRecipientsId] = useState<number | null>(null)
-  const [recipientsDraft, setRecipientsDraft] = useState('')
+
+  // Edit form — a right side-sheet (M3 spec pattern showcase) rather than
+  // the inline "edit this one cell" affordance the ledger-ink design used.
+  const emptyEditForm: EditFormState = {
+    name: '',
+    contractRate: '',
+    slaDaysToSubmit: '',
+    reportRecipients: '',
+    state: ''
+  }
+  const [editingClient, setEditingClient] = useState<Client | null>(null)
+  const [editForm, setEditForm] = useState<EditFormState>(emptyEditForm)
+  const [savingEdit, setSavingEdit] = useState(false)
 
   async function refresh(): Promise<void> {
     setLoading(true)
@@ -86,18 +116,28 @@ function Clients(): React.JSX.Element {
     }
   }
 
-  function startEditingRecipients(client: Client): void {
-    setEditingRecipientsId(client.clientId)
-    setRecipientsDraft(client.reportRecipients.join(', '))
+  function openEdit(client: Client): void {
+    setEditingClient(client)
+    setEditForm(toEditForm(client))
   }
 
-  async function handleSaveRecipients(clientId: number): Promise<void> {
+  async function handleSaveEdit(): Promise<void> {
+    if (!editingClient) return
+    setSavingEdit(true)
     try {
-      await updateClient(clientId, { reportRecipients: parseRecipients(recipientsDraft) })
-      setEditingRecipientsId(null)
+      await updateClient(editingClient.clientId, {
+        name: editForm.name.trim(),
+        contractRate: editForm.contractRate ? Number(editForm.contractRate) : null,
+        slaDaysToSubmit: editForm.slaDaysToSubmit ? Number(editForm.slaDaysToSubmit) : null,
+        reportRecipients: parseRecipients(editForm.reportRecipients),
+        state: editForm.state.trim() ? editForm.state.trim().toUpperCase() : null
+      })
+      setEditingClient(null)
       await refresh()
     } catch (err) {
       setError(String(err))
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -202,35 +242,12 @@ function Clients(): React.JSX.Element {
                 </td>
                 <td>{client.slaDaysToSubmit ?? '—'}</td>
                 <td>{client.state ?? '—'}</td>
-                <td>
-                  {editingRecipientsId === client.clientId ? (
-                    <>
-                      <input
-                        value={recipientsDraft}
-                        onChange={(e) => setRecipientsDraft(e.target.value)}
-                        placeholder="billing@acme.example, ops@acme.example"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void handleSaveRecipients(client.clientId)}
-                      >
-                        Save
-                      </button>
-                      <button type="button" onClick={() => setEditingRecipientsId(null)}>
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      {client.reportRecipients.join(', ') || '—'}{' '}
-                      <button type="button" onClick={() => startEditingRecipients(client)}>
-                        Edit
-                      </button>
-                    </>
-                  )}
-                </td>
+                <td>{client.reportRecipients.join(', ') || '—'}</td>
                 <td>{client.active ? 'Active' : 'Inactive'}</td>
-                <td>
+                <td className="data-table-actions">
+                  <button type="button" onClick={() => openEdit(client)}>
+                    Edit
+                  </button>
                   <button type="button" onClick={() => void handleToggleActive(client)}>
                     {client.active ? 'Deactivate' : 'Reactivate'}
                   </button>
@@ -240,6 +257,73 @@ function Clients(): React.JSX.Element {
           </tbody>
         </table>
       )}
+
+      <SideSheet
+        open={editingClient !== null}
+        onClose={() => setEditingClient(null)}
+        title="Edit client"
+        subtitle={editingClient?.code}
+        footer={
+          <>
+            <button type="button" onClick={() => setEditingClient(null)}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSaveEdit()}
+              disabled={savingEdit}
+              className="side-sheet-primary-action"
+            >
+              {savingEdit ? 'Saving…' : 'Save changes'}
+            </button>
+          </>
+        }
+      >
+        <form className="client-form" onSubmit={(e) => e.preventDefault()}>
+          <label>
+            Name
+            <input
+              value={editForm.name}
+              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+            />
+          </label>
+          <label>
+            Contract rate (0–1)
+            <input
+              type="number"
+              step="0.001"
+              min="0"
+              max="1"
+              value={editForm.contractRate}
+              onChange={(e) => setEditForm({ ...editForm, contractRate: e.target.value })}
+            />
+          </label>
+          <label>
+            SLA days to submit
+            <input
+              type="number"
+              min="1"
+              value={editForm.slaDaysToSubmit}
+              onChange={(e) => setEditForm({ ...editForm, slaDaysToSubmit: e.target.value })}
+            />
+          </label>
+          <label>
+            Report recipients (comma-separated emails)
+            <input
+              value={editForm.reportRecipients}
+              onChange={(e) => setEditForm({ ...editForm, reportRecipients: e.target.value })}
+            />
+          </label>
+          <label>
+            State (2-letter)
+            <input
+              maxLength={2}
+              value={editForm.state}
+              onChange={(e) => setEditForm({ ...editForm, state: e.target.value.toUpperCase() })}
+            />
+          </label>
+        </form>
+      </SideSheet>
     </section>
   )
 }

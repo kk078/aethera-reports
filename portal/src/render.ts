@@ -11,23 +11,37 @@ import { escapeHtml, svgDonutChart, svgHorizontalBarChart } from './charts'
 import type { ClientReport } from '../../src/shared/domain'
 import type { SnapshotSummary } from './snapshots'
 
+/*
+ * Aethera Client Portal — M3 mobile styling (aethera_client_portal's
+ * DESIGN.md): same palette family as the desktop app (Healthcare Blue
+ * primary #005bbf; billing-green/high-emphasis-red/exception-orange
+ * semantics), 8dp "Round Eight" radius everywhere, larger touch targets
+ * (48dp minimum hit area) and generous mobile type sizes. Fonts stay a
+ * system stack — no external font requests from a portal that must
+ * remain zero-JS/strict-CSP; "Roboto Flex" in the spec is satisfied by
+ * the system Roboto fallback wherever the OS ships it.
+ */
 const BASE_STYLE = `
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 16px; background: #f5f6f8; color: #1a1a19; max-width: 720px; margin-left: auto; margin-right: auto; }
-  h1, h2 { color: #1a1a19; }
-  h1 { font-size: 1.4rem; }
-  h2 { font-size: 1.1rem; margin-top: 2rem; }
-  .card { background: #fff; border-radius: 8px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 16px; background: #f9f9ff; color: #191c23; max-width: 720px; margin-left: auto; margin-right: auto; font-size: 14px; line-height: 1.5; }
+  h1, h2 { color: #191c23; }
+  h1 { font-size: 1.5rem; font-weight: 600; }
+  h2 { font-size: 1.125rem; font-weight: 500; margin-top: 2rem; }
+  .card { background: #ffffff; border: 1px solid #c4c7c5; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
   table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-  td, th { text-align: left; padding: 6px 4px; border-bottom: 1px solid #eee; }
+  td, th { text-align: left; padding: 10px 4px; border-bottom: 1px solid #e0e2ec; }
   .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
-  .kpi { background: #fafbfc; border-radius: 6px; padding: 10px; }
-  .kpi .label { font-size: 0.75rem; color: #666; }
-  .kpi .value { font-size: 1.15rem; font-weight: 600; }
-  .footer { font-size: 0.75rem; color: #888; margin-top: 2rem; text-align: center; }
-  a { color: #2a78d6; }
-  .period-list a { display: block; padding: 10px 0; border-bottom: 1px solid #eee; font-size: 1rem; }
+  .kpi { background: #f2f3fd; border-radius: 8px; padding: 12px; }
+  .kpi .label { font-family: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 0.6875rem; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; color: #414754; }
+  .kpi .value { font-size: 1.25rem; font-weight: 700; margin-top: 4px; color: #191c23; }
+  .footer { font-size: 0.75rem; color: #727785; margin-top: 2rem; text-align: center; }
+  a { color: #005bbf; }
+  .period-list a { display: flex; align-items: center; min-height: 48px; padding: 10px 0; border-bottom: 1px solid #e0e2ec; font-size: 1rem; }
+  .status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 500; }
+  .status-pill--good { background: #e6f4ea; color: #1e8e3e; }
+  .status-pill--warning { background: #fef7e0; color: #b06f00; }
+  .status-pill--critical { background: #ffdad6; color: #93000a; }
 `
 
 function pageShell(title: string, bodyHtml: string): string {

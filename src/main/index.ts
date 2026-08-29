@@ -67,16 +67,16 @@ async function createDataService(userDataDir: string): Promise<IDataService> {
   return LocalDataService.create(resolveDataServicePaths())
 }
 
-// Matches tokens.css's light-mode `--bg` (the app's default/fallback
-// mode before the renderer's saved localStorage preference, if any, has
-// been read) — painted natively by Electron before any web content
-// loads, so the window opens onto warm paper instead of a stark white
-// flash while the bundle parses (design pass: replace the electron-vite
-// scaffold's default look). Not theme-perfect for a saved dark
+// Matches tokens.css's light-mode `--surface`/`--background` (Aethera
+// Command's M3 surface tone — the app's default/fallback mode before the
+// renderer's saved localStorage preference, if any, has been read) —
+// painted natively by Electron before any web content loads, so the
+// window opens onto the right surface instead of a stark white flash
+// while the bundle parses. Not theme-perfect for a saved dark
 // preference (main process can't synchronously read the renderer's
-// localStorage), but a soft paper tone is a mild transition either way,
-// never the harsh white flash the scaffold had.
-const WINDOW_BACKGROUND_COLOR = '#F4F5F2'
+// localStorage), but this is a mild transition either way, never the
+// harsh white flash the electron-vite scaffold had.
+const WINDOW_BACKGROUND_COLOR = '#F9F9FF'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({

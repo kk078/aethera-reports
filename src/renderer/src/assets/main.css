@@ -21,125 +21,135 @@ body {
 .app-content {
   flex: 1;
   overflow-y: auto;
-  padding: var(--space-7) var(--space-8);
+  padding: var(--space-6) var(--margin-edge);
 }
 
 /* ---------------------------------------------------------------------
-   Sidebar — the signature left-rule motif starts here: the active nav
-   item's 3px accent bar is the same device a KPI-that-matters or an
-   alert banner uses (see .form-error/.form-success below), so it reads
-   as one consistent visual language rather than a one-off nav treatment.
+   Navigation rail — M3 spec: 72px persistent rail, icon + short label,
+   active state is the standard M3 "pill behind the icon" indicator
+   (bg-secondary-container, icon/label tinted primary). Workflow groups
+   keep their original order (Portfolio/Clients, Imports/Manual Entry,
+   Denials/A-R/Payers, Automation/Settings) but read as thin rules
+   between groups instead of text section headers — there's no room
+   for one at this width.
    --------------------------------------------------------------------- */
 
-.sidebar {
-  width: 232px;
+.nav-rail {
+  width: var(--rail-width);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  padding: var(--space-4) 0;
+  align-items: center;
+  background: var(--surface-container-low);
+  border-right: 1px solid var(--outline-variant);
+  padding: var(--space-3) 0;
   overflow-y: auto;
 }
 
-.sidebar-brand {
+.nav-rail-brand {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-5) var(--space-5);
+  justify-content: center;
+  padding-bottom: var(--space-3);
   margin-bottom: var(--space-2);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--outline-variant);
+  width: 100%;
 }
 
-.sidebar-brand-mark {
-  flex-shrink: 0;
-  border-radius: var(--radius-sm);
-}
-
-.sidebar-brand-name {
-  font-weight: var(--weight-semibold);
-  font-size: var(--text-base);
-  color: var(--text);
-  letter-spacing: -0.01em;
-}
-
-.sidebar-nav {
+.nav-rail-groups {
   flex: 1;
-}
-
-.sidebar-section + .sidebar-section {
-  margin-top: 18px;
-}
-
-.sidebar-section-label {
-  padding: 0 16px 6px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-.sidebar ul {
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  align-items: center;
 }
 
-.sidebar a {
-  display: block;
-  padding: var(--space-2) var(--space-5);
-  margin: 0 var(--space-2);
-  border-radius: var(--radius-sm);
-  border-left: 3px solid transparent;
-  color: var(--text-muted);
+.nav-rail-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  padding: var(--space-2) 0;
+}
+
+.nav-rail-group + .nav-rail-group {
+  border-top: 1px solid var(--outline-variant);
+}
+
+.nav-rail-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 60px;
+  padding: 2px 0 4px;
+  border-radius: var(--radius-md);
+  color: var(--on-surface-variant);
   text-decoration: none;
-  font-size: var(--text-sm);
-  font-weight: var(--weight-medium);
   transition:
-    background var(--transition-fast),
     color var(--transition-fast),
-    border-color var(--transition-fast);
+    background var(--transition-fast);
 }
 
-.sidebar a:hover {
-  background: var(--surface-sunken);
-  color: var(--text);
+.nav-rail-item-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  transition: background var(--transition-fast);
 }
 
-.sidebar a.active {
-  color: var(--accent-strong);
-  background: var(--accent-tint);
-  border-left-color: var(--accent);
+.nav-rail-item:hover .nav-rail-item-indicator {
+  background: var(--surface-container-high);
+}
+
+.nav-rail-item-label {
+  font-size: var(--type-label-sm-size);
+  line-height: var(--type-label-sm-lh);
+  letter-spacing: 0.3px;
+}
+
+.nav-rail-item.active {
+  color: var(--primary);
+}
+
+.nav-rail-item.active .nav-rail-item-indicator {
+  background: var(--secondary-container);
+}
+
+.nav-rail-item.active .nav-rail-item-label {
   font-weight: var(--weight-semibold);
 }
 
-.sidebar-footer {
-  padding: var(--space-3) var(--space-5) 0;
-  margin-top: var(--space-3);
-  border-top: 1px solid var(--border);
+.nav-rail-footer {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-3);
+  margin-top: var(--space-2);
+  border-top: 1px solid var(--outline-variant);
+  width: 100%;
 }
 
-.theme-toggle {
-  display: inline-flex;
+.nav-rail-theme-toggle {
+  display: flex;
   align-items: center;
-  gap: var(--space-2);
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface-raised);
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-medium);
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  border: none;
+  background: transparent;
+  color: var(--on-surface-variant);
   cursor: pointer;
   transition:
     background var(--transition-fast),
     color var(--transition-fast);
 }
 
-.theme-toggle:hover {
-  background: var(--surface-sunken);
+.nav-rail-theme-toggle:hover {
+  background: var(--surface-container-high);
   color: var(--text);
 }
 
@@ -170,13 +180,15 @@ body {
 
 .screen-placeholder button {
   margin-top: var(--space-2);
-  padding: var(--space-2) var(--space-4);
+  height: 28px;
+  padding: 0 var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
-  font-size: var(--text-sm);
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
   font-weight: var(--weight-medium);
   transition:
     background var(--transition-fast),
@@ -194,8 +206,8 @@ body {
 }
 
 /* A screen's primary call-to-action — a <button type="submit"> reads as
-   the confident action; everything else stays quiet (frontend-design
-   skill: "spend your boldness in one place"). */
+   the confident action; everything else stays a quiet 8dp outlined
+   button (frontend-design skill: "spend your boldness in one place"). */
 .screen-placeholder button[type='submit'] {
   background: var(--accent);
   border-color: var(--accent);
@@ -254,7 +266,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  font-size: var(--type-label-md-size);
   font-weight: var(--weight-medium);
   color: var(--text-muted);
   text-transform: uppercase;
@@ -303,7 +316,8 @@ body {
 
 .client-form legend {
   color: var(--text-muted);
-  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  font-size: var(--type-label-md-size);
   text-transform: uppercase;
   letter-spacing: var(--tracking-label);
   padding: 0 var(--space-2);
@@ -320,6 +334,7 @@ body {
   gap: var(--space-1) !important;
   text-transform: none !important;
   letter-spacing: normal !important;
+  font-family: var(--font-ui) !important;
   font-size: var(--text-sm) !important;
   color: var(--text) !important;
 }
@@ -330,16 +345,19 @@ body {
 }
 
 /* ---------------------------------------------------------------------
-   Tables — hairline dividers, generous row height, no zebra striping
-   (a considered ledger reads as ruled, not banded).
+   Tables — M3 "Work Queue" treatment: sharp interior corners, compact-
+   data cell values (Roboto, medium weight, tabular numerals where
+   marked), JetBrains Mono column headers as the label role.
    --------------------------------------------------------------------- */
 
 .data-table {
   width: 100%;
   max-width: 900px;
   border-collapse: collapse;
-  font-size: var(--text-sm);
+  font-size: var(--type-compact-data-size);
   margin-bottom: var(--space-4);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
 }
 
 .data-table th,
@@ -351,11 +369,13 @@ body {
 }
 
 .data-table th {
-  color: var(--text-faint);
-  font-weight: var(--weight-semibold);
-  font-size: var(--text-2xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-weight: var(--weight-medium);
+  font-size: var(--type-label-sm-size);
   text-transform: uppercase;
   letter-spacing: var(--tracking-label);
+  background: var(--surface-container-low);
 }
 
 .data-table tbody tr {
@@ -368,12 +388,108 @@ body {
 
 .data-table td {
   color: var(--text);
+  font-weight: var(--weight-medium);
+  line-height: var(--type-compact-data-lh);
+}
+
+.data-table-actions {
+  display: flex;
+  gap: var(--space-2);
 }
 
 .jobs-list-header {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+}
+
+/* ---------------------------------------------------------------------
+   Exception badges — high-chroma status chips (M3 spec) for
+   failed/rejected/quarantined and other financial statuses. Icon +
+   label always ship together; color never carries the meaning alone.
+   --------------------------------------------------------------------- */
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid transparent;
+  font-family: var(--font-mono);
+  font-size: var(--type-label-sm-size);
+  line-height: var(--type-label-sm-lh);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.3px;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.status-chip .material-symbols-rounded {
+  font-size: 14px;
+}
+
+.status-chip--good {
+  background: var(--billing-green-container);
+  color: var(--billing-green);
+  border-color: var(--billing-green-border);
+}
+
+.status-chip--warning {
+  background: var(--exception-orange-container);
+  color: var(--exception-orange);
+  border-color: var(--exception-orange-border);
+}
+
+.status-chip--critical {
+  background: var(--error-container);
+  color: var(--on-error-container);
+  border-color: var(--high-emphasis-red);
+}
+
+.status-chip--neutral {
+  background: var(--surface-container-high);
+  color: var(--on-surface-variant);
+  border-color: var(--outline-variant);
+}
+
+/* ---------------------------------------------------------------------
+   KPI / modular cards — M3 spec: 28dp rounded containers, 12px internal
+   padding, JetBrains Mono labels over a Roboto value.
+   --------------------------------------------------------------------- */
+
+.kpi-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--gutter-compact);
+  margin-bottom: var(--space-4);
+}
+
+.kpi-card {
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--outline-variant);
+  border-radius: var(--radius-card);
+  padding: var(--container-padding);
+  box-shadow: var(--shadow-sm);
+}
+
+.kpi-card-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--type-label-md-size);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.kpi-card-value {
+  display: block;
+  margin-top: var(--space-1);
+  font-family: var(--font-ui);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text);
 }
 
 /* ---------------------------------------------------------------------
@@ -401,6 +517,146 @@ body {
   padding: var(--space-3);
   margin-top: var(--space-3);
   background: var(--surface-raised);
+}
+
+/* ---------------------------------------------------------------------
+   Side-sheet — right-hand "Details-on-Demand" panel (M3 spec). Shared
+   by `components/SideSheet.tsx`; Imports' quarantine viewer and
+   Clients' edit form are the two pattern-showcase conversions.
+   --------------------------------------------------------------------- */
+
+@keyframes side-sheet-slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes side-sheet-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.side-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 16, 0.35);
+  backdrop-filter: blur(2px);
+  z-index: 40;
+  animation: side-sheet-fade-in var(--transition-sheet);
+}
+
+.side-sheet {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(420px, 92vw);
+  background: var(--surface-container-lowest);
+  border-left: 1px solid var(--outline-variant);
+  box-shadow: var(--shadow-sheet);
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  animation: side-sheet-slide-in var(--transition-sheet);
+}
+
+.side-sheet-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--outline-variant);
+  background: var(--surface-bright);
+}
+
+.side-sheet-header h2 {
+  font-size: var(--type-headline-sm-size);
+  line-height: var(--type-headline-sm-lh);
+  font-weight: var(--weight-bold);
+  color: var(--text);
+}
+
+.side-sheet-subtitle {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: var(--type-label-sm-size);
+  text-transform: uppercase;
+}
+
+.side-sheet-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-pill);
+  padding: 4px;
+  flex-shrink: 0;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.side-sheet-close:hover {
+  background: var(--surface-container-high);
+  color: var(--text);
+}
+
+.side-sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+}
+
+.side-sheet-body .data-table {
+  max-width: none;
+}
+
+.side-sheet-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--outline-variant);
+  background: var(--surface-container-low);
+}
+
+.side-sheet-footer button {
+  height: 28px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+.side-sheet-footer button:hover {
+  background: var(--surface-sunken);
+}
+
+.side-sheet-primary-action {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: var(--on-primary) !important;
+}
+
+.side-sheet-primary-action:hover {
+  background: var(--on-primary-fixed-variant) !important;
+  border-color: var(--on-primary-fixed-variant) !important;
 }
 
 /* ---------------------------------------------------------------------

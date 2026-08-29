@@ -1,4 +1,5 @@
 import type { ImportJob } from '../../../../shared/domain'
+import StatusChip from '../../components/StatusChip'
 
 interface JobsListProps {
   jobs: ImportJob[]
@@ -36,7 +37,9 @@ function JobsList({ jobs, onRefresh, onViewQuarantine }: JobsListProps): React.J
               <tr key={job.jobId}>
                 <td>#{job.jobId}</td>
                 <td>{job.fileName ?? '—'}</td>
-                <td>{job.status}</td>
+                <td>
+                  <StatusChip status={job.status} />
+                </td>
                 <td>{job.rowsRead}</td>
                 <td>{job.rowsLoaded}</td>
                 <td>{job.rowsSkipped}</td>

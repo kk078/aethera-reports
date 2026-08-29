@@ -627,7 +627,7 @@ function DataModeSection(): React.JSX.Element {
 function BrandingSection(): React.JSX.Element {
   const [branding, setBranding] = useState<Branding | null>(null)
   const [firmName, setFirmName] = useState('')
-  const [primaryColor, setPrimaryColor] = useState('#2a78d6')
+  const [primaryColor, setPrimaryColor] = useState('#005bbf')
   const [secondaryColor, setSecondaryColor] = useState('#222222')
   const [footerDisclaimer, setFooterDisclaimer] = useState('')
   const [saving, setSaving] = useState(false)

@@ -39,15 +39,15 @@ function Imports(): React.JSX.Element {
 
       <hr />
 
-      {quarantineJobId !== null ? (
-        <QuarantineViewer jobId={quarantineJobId} onClose={() => setQuarantineJobId(null)} />
-      ) : (
-        <JobsList
-          jobs={jobs}
-          onRefresh={() => void refreshAll()}
-          onViewQuarantine={setQuarantineJobId}
-        />
-      )}
+      <JobsList
+        jobs={jobs}
+        onRefresh={() => void refreshAll()}
+        onViewQuarantine={setQuarantineJobId}
+      />
+
+      {/* Side-sheet pattern showcase (M3 spec) — slides over the jobs
+          list rather than replacing it. */}
+      <QuarantineViewer jobId={quarantineJobId} onClose={() => setQuarantineJobId(null)} />
     </section>
   )
 }

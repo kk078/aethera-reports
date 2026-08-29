@@ -42,7 +42,7 @@ export function svgHorizontalBarChart(
       const barWidth = Math.max(0, (Math.max(0, d.value) / maxValue) * barAreaWidth)
       return `
         <text x="0" y="${y + BAR_HEIGHT / 2 + 4}" font-size="12" fill="#333">${escapeHtml(d.label)}</text>
-        <rect x="${LABEL_WIDTH}" y="${y}" width="${barWidth.toFixed(1)}" height="${BAR_HEIGHT}" fill="#2a78d6" rx="3" />
+        <rect x="${LABEL_WIDTH}" y="${y}" width="${barWidth.toFixed(1)}" height="${BAR_HEIGHT}" fill="#005bbf" rx="4" />
         <text x="${LABEL_WIDTH + barWidth + 6}" y="${y + BAR_HEIGHT / 2 + 4}" font-size="12" fill="#333">${escapeHtml(format(d.value))}</text>
       `
     })
@@ -51,7 +51,11 @@ export function svgHorizontalBarChart(
   return `<svg viewBox="0 0 ${CHART_WIDTH} ${height}" width="100%" height="${height}" role="img" aria-label="bar chart" xmlns="http://www.w3.org/2000/svg">${rows}</svg>`
 }
 
-const DONUT_COLORS = ['#2a78d6', '#e07b39', '#3fa34d', '#a03fd6', '#d63f5c', '#7a7a7a']
+// Same fixed categorical order as the desktop app's chart theme (see
+// `src/renderer/src/assets/tokens.css`'s --chart-cat-* — validated with
+// the dataviz skill's validate_palette.js): red, blue, orange, violet,
+// brown, green.
+const DONUT_COLORS = ['#d93025', '#005bbf', '#f29900', '#7c5cbf', '#9e4300', '#1e8e3e']
 
 /** A donut chart for a small categorical breakdown (e.g. claims by status). Falls back to a single "No data" ring when every value is zero, rather than dividing by zero. */
 export function svgDonutChart(data: BarDatum[]): string {

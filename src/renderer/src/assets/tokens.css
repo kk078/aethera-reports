@@ -1,71 +1,142 @@
 /**
  * Aethera Reports design tokens — the single source of truth for every
- * color, radius, spacing, and type value in the app (frontend-design
- * skill: "an intentional, distinctive visual direction instead of
- * templated defaults").
+ * color, radius, spacing, and type value in the app.
  *
- * Direction — "ledger ink": this is a revenue-cycle back-office tool,
- * used for hours at a stretch by people scanning dense financial
- * tables, not a marketing surface. The palette borrows the old paper-
- * ledger convention of a second ink color for what matters: a deep
- * TEAL carries structure/action (nav, links, primary buttons), and a
- * sparing GOLD marks "this is the value that matters" (a KPI that's up,
- * a highlighted total, an accent bar) — never both at once, gold is
- * never a whole background. Neither is Bootstrap-blue-and-white or a
- * near-black+neon SaaS default; both are picked for THIS subject (RCM
- * sits at the intersection of healthcare and finance — teal reads as
- * neither pure corporate-blue nor clinical-green, deliberately).
+ * Direction — "Aethera Command" (M3): this file implements the user-
+ * supplied Material Design 3 spec verbatim (see the session's
+ * `aethera_command/DESIGN.md`), REPLACING the app's former "ledger ink"
+ * palette. Primary is Healthcare Blue (#005bbf); the semantic trio
+ * billing-green / high-emphasis-red / exception-orange is reserved for
+ * financial status only (paid/collected, rejected/critical, pending/
+ * in-review) and never doubles as a decorative accent. Type is Roboto
+ * for UI/body/compact-data, JetBrains Mono for labels and metadata —
+ * the mono face is the one consistent signal that a string is a
+ * system label, not a value. Density is M3 "Compact" (-3 scale):
+ * tighter line-heights, an 8px gutter, a 72px navigation rail instead
+ * of a wide sidebar. Shape is a deliberate hybrid — 28dp modular cards,
+ * 8dp interactive controls, sharp (0–4px) table-cell corners.
+ *
+ * Both Roboto and JetBrains Mono ship as local npm packages
+ * (@fontsource/roboto, @fontsource/jetbrains-mono) imported by
+ * `main.tsx` — no Google Fonts / CDN request, since this is an offline
+ * desktop app. Material Symbols Rounded ships the same way
+ * (@material-symbols/font-400) for the navigation rail's iconography.
  *
  * Chart colors are driven by these SAME variables (see
  * `components/charts/theme.ts`, which reads them via
- * `getComputedStyle`) — the categorical/status steps below are the
- * `dataviz` skill's own validated reference palette, re-validated
- * against this file's actual --surface/--chart-surface values for both
- * modes (see the session's design notes for the two
- * `validate_palette.js` runs).
+ * `getComputedStyle`) — the categorical order below was run through the
+ * dataviz skill's own `validate_palette.js` for BOTH modes (six checks:
+ * lightness band, chroma floor, adjacent-pair CVD separation, the
+ * normal-vision floor, and surface contrast) before being committed
+ * here; only the reserved cat-3/exception-orange slot legitimately sits
+ * in the sub-3:1 "relief" band, which every consuming chart already
+ * mitigates with a legend + axis labels, never color alone.
  *
  * Mode switching: explicit `[data-theme]` (set by
  * `lib/theme-context.tsx`, persisted to localStorage) always wins;
  * `prefers-color-scheme` governs only the brief window before that
- * script runs (this exact three-layer pattern — :root default,
- * OS-media guarded by :not([data-theme="light"]), explicit
- * [data-theme="dark"] — is the dataviz skill's own documented pattern
- * for keeping a toggle and the OS setting from fighting each other).
+ * script runs (three-layer cascade: :root default, OS-media guarded by
+ * :not([data-theme="light"]), explicit [data-theme="dark"]). The spec
+ * ships light-only; the dark column below is a hand-derived M3 dark
+ * tonal set for the SAME hues (M3 "fixed" roles — primary-fixed,
+ * secondary-fixed, tertiary-fixed and their *-dim/on-*-variant
+ * companions — are mode-invariant by definition, so they're declared
+ * once in :root and never overridden).
  */
 
 :root {
-  /* ---- Radii ---- */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 10px;
-  --radius-pill: 999px;
+  /* ---- M3 color roles (light — from aethera_command/DESIGN.md) ---- */
+  --surface: #f9f9ff;
+  --surface-dim: #d8d9e3;
+  --surface-bright: #f9f9ff;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f2f3fd;
+  --surface-container: #ecedf7;
+  --surface-container-high: #e6e8f2;
+  --surface-container-highest: #e0e2ec;
+  --surface-variant: #f1f3f4;
+  --background: #f9f9ff;
+  --on-surface: #191c23;
+  --on-surface-variant: #414754;
+  --inverse-surface: #2d3038;
+  --inverse-on-surface: #eff0fa;
+  --outline: #727785;
+  --outline-variant: #c4c7c5;
+  --surface-tint: #005bc0;
 
-  /* ---- Spacing scale ---- */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --space-6: 24px;
-  --space-7: 32px;
-  --space-8: 40px;
-  --space-9: 48px;
+  --primary: #005bbf;
+  --on-primary: #ffffff;
+  --primary-container: #1a73e8;
+  --on-primary-container: #ffffff;
+  --inverse-primary: #adc7ff;
+  --primary-fixed: #d8e2ff;
+  --primary-fixed-dim: #adc7ff;
+  --on-primary-fixed: #001a41;
+  --on-primary-fixed-variant: #004493;
 
-  /* ---- Type ---- */
-  /* System-native sans throughout (dataviz skill's own typeface guidance:
-     "no display or serif face anywhere" even for the reference palette's
-     own hero figures) — figures use `font-variant-numeric: tabular-nums`
-     where columns must align (data tables, KPI values), not a distinct
-     monospace family; see .tabular-nums below. */
+  --secondary: #456080;
+  --on-secondary: #ffffff;
+  --secondary-container: #bed9ff;
+  --on-secondary-container: #445f7f;
+  --secondary-fixed: #d1e4ff;
+  --secondary-fixed-dim: #adc9ed;
+  --on-secondary-fixed: #001d36;
+  --on-secondary-fixed-variant: #2d4867;
+
+  --tertiary: #9e4300;
+  --on-tertiary: #ffffff;
+  --tertiary-container: #c55500;
+  --on-tertiary-container: #0e0200;
+  --tertiary-fixed: #ffdbcb;
+  --tertiary-fixed-dim: #ffb691;
+  --on-tertiary-fixed: #341100;
+  --on-tertiary-fixed-variant: #783100;
+
+  --error: #ba1a1a;
+  --on-error: #ffffff;
+  --error-container: #ffdad6;
+  --on-error-container: #93000a;
+
+  /* Financial semantics (reserved — see file header). */
+  --billing-green: #1e8e3e;
+  --billing-green-container: #e6f4ea;
+  --billing-green-border: #ceead6;
+  --high-emphasis-red: #d93025;
+  --exception-orange: #f29900;
+  --exception-orange-container: #fef7e0;
+  --exception-orange-border: #fde293;
+
+  /* ---- Type (Roboto UI/body/compact-data, JetBrains Mono labels) ---- */
   --font-ui:
-    system-ui, -apple-system, 'Segoe UI', Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial,
-    sans-serif;
+    Roboto, -apple-system, 'Segoe UI', Ubuntu, Cantarell, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
-  --text-2xs: 0.6875rem; /* 11px — micro labels */
-  --text-xs: 0.75rem; /* 12px — captions, table meta */
-  --text-sm: 0.8125rem; /* 13px — table cells, form labels */
+  /* M3 "compact" (-3 density) type scale, named after the spec's roles. */
+  --type-display-sm-size: 1.5rem; /* 24px */
+  --type-display-sm-lh: 2rem; /* 32px */
+  --type-headline-md-size: 1.125rem; /* 18px */
+  --type-headline-md-lh: 1.5rem; /* 24px */
+  --type-headline-sm-size: 0.875rem; /* 14px */
+  --type-headline-sm-lh: 1.25rem; /* 20px */
+  --type-body-md-size: 0.8125rem; /* 13px */
+  --type-body-md-lh: 1.125rem; /* 18px */
+  --type-body-sm-size: 0.75rem; /* 12px */
+  --type-body-sm-lh: 1rem; /* 16px */
+  --type-label-md-size: 0.6875rem; /* 11px */
+  --type-label-md-lh: 0.875rem; /* 14px */
+  --type-label-sm-size: 0.625rem; /* 10px */
+  --type-label-sm-lh: 0.75rem; /* 12px */
+  --type-compact-data-size: 0.8125rem; /* 13px */
+  --type-compact-data-lh: 1rem; /* 16px */
+  --tracking-label: 0.5px;
+
+  /* Legacy size aliases kept so most of main.css didn't need touching —
+     values already land on/near the spec's roles above. */
+  --text-2xs: var(--type-label-md-size); /* 11px — micro labels (mono) */
+  --text-xs: var(--type-body-sm-size); /* 12px — captions, table meta */
+  --text-sm: var(--type-body-md-size); /* 13px — table cells, form labels */
   --text-base: 0.9375rem; /* 15px — body default */
-  --text-md: 1.0625rem; /* 17px — section headers */
+  --text-md: var(--type-headline-md-size); /* 18px — section headers */
   --text-lg: 1.375rem; /* 22px — screen titles */
   --text-xl: 1.75rem; /* 28px — big KPI numbers */
   --text-2xl: 2.25rem; /* 36px — hero KPI */
@@ -78,191 +149,311 @@
   --line-tight: 1.25;
   --line-base: 1.5;
 
-  /* Structural device (frontend-design skill: "structure is information")
-     — eyebrow/section labels get tracked uppercase; this is the ONE
-     tracking value used everywhere so it never looks accidental. */
-  --tracking-label: 0.06em;
+  /* ---- Radii — hybrid shape language ---- */
+  --radius-sm: 4px; /* sharp table-cell corners */
+  --radius-md: 8px; /* interactive: buttons, inputs, chips */
+  --radius-lg: 12px; /* larger interactive containers (wizard, preview frame) */
+  --radius-card: 28px; /* modular "mini-application" cards */
+  --radius-pill: 999px;
+
+  /* ---- Spacing — M3 "-3" density scale ---- */
+  --rail-width: 72px;
+  --gutter-compact: 8px;
+  --margin-edge: 16px;
+  --container-padding: 12px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
 
   /* ---- Motion ---- */
   --transition-fast: 120ms ease;
   --transition-base: 180ms ease;
+  --transition-sheet: 240ms cubic-bezier(0.2, 0, 0, 1);
 
-  /* ---- Light mode (default) ---- */
+  /* ---- Mode-invariant legacy aliases (light default) ---- */
   color-scheme: light;
 
-  --bg: #f4f5f2;
-  --surface: #ffffff;
-  --surface-raised: #fbfbf9;
-  --surface-sunken: #edeeea;
-  --border: #dcdfda;
-  --border-strong: #c3c7c0;
+  --bg: var(--background);
+  --surface-raised: var(--surface-container-low);
+  --surface-sunken: var(--surface-container);
+  --border: var(--outline-variant);
+  --border-strong: var(--outline);
 
-  --text: #1b2320;
-  --text-muted: #5b6660;
-  --text-faint: #8b948e;
-  --text-on-accent: #f6f4ec;
-  --text-on-gold: #241a08;
+  --text: var(--on-surface);
+  --text-muted: var(--on-surface-variant);
+  --text-faint: var(--outline);
+  --text-on-accent: var(--on-primary);
+  --text-on-gold: var(--on-tertiary);
 
-  --accent: #0f7a72;
-  --accent-strong: #0b5f59;
-  --accent-tint: #e3f2ef;
+  --accent: var(--primary);
+  --accent-strong: var(--on-primary-fixed-variant);
+  --accent-tint: var(--primary-fixed);
 
-  --gold: #a8791e;
-  --gold-strong: #8a6318;
-  --gold-tint: #f5ebd3;
+  --gold: var(--tertiary);
+  --gold-strong: var(--on-tertiary-fixed-variant);
+  --gold-tint: var(--tertiary-fixed);
 
-  --danger: #b23b3b;
-  --danger-strong: #8f2e2e;
-  --danger-tint: #f7e7e5;
+  --danger: var(--high-emphasis-red);
+  --danger-strong: var(--on-error-container);
+  --danger-tint: var(--error-container);
 
-  --success: #1f7a4d;
-  --success-tint: #e2f2e8;
+  --success: var(--billing-green);
+  --success-tint: var(--billing-green-container);
 
-  --focus-ring: #0f7a72;
+  --focus-ring: var(--primary);
 
-  --shadow-sm: 0 1px 2px rgba(27, 35, 32, 0.06);
-  --shadow-md: 0 4px 16px rgba(27, 35, 32, 0.1);
+  /* Reduced-blur, crisper elevation per the spec's "Ambient Shadows". */
+  --shadow-sm: 0 1px 2px rgba(25, 28, 35, 0.08);
+  --shadow-md: 0 4px 12px rgba(25, 28, 35, 0.14);
+  --shadow-sheet: -4px 0 20px rgba(25, 28, 35, 0.16);
 
   /* ---- Chart chrome (read live by components/charts/theme.ts) ---- */
-  --chart-surface: var(--surface);
+  --chart-surface: var(--surface-container-lowest);
   --chart-text: var(--text);
   --chart-text-secondary: var(--text-muted);
-  --chart-grid: #e1e0d9;
-  --chart-axis: #c3c2b7;
+  --chart-grid: #e3e5ee;
+  --chart-axis: #c4c7c5;
 
-  /* dataviz skill's validated reference categorical order (light column),
-     re-validated against --chart-surface #ffffff / page-plane #f4f5f2 —
-     ALL CHECKS PASS, 4 slots in the documented sub-3:1 relief band
-     (mitigated: every chart here already ships a legend + axis labels). */
-  --chart-cat-1: #2a78d6;
-  --chart-cat-2: #eb6834;
-  --chart-cat-3: #1baf7a;
-  --chart-cat-4: #eda100;
-  --chart-cat-5: #e87ba4;
-  --chart-cat-6: #008300;
-  --chart-cat-7: #4a3aa7;
-  --chart-cat-8: #e34948;
+  /* Categorical order — validated (dataviz skill's validate_palette.js,
+     both modes): high-emphasis-red, primary, exception-orange, an
+     extended violet tone (M3 secondary reads too low-chroma for chart
+     use, so this tertiary-family violet fills the slot instead),
+     tertiary, billing-green. Fixed order, never cycled independently. */
+  --chart-cat-1: #d93025;
+  --chart-cat-2: #005bbf;
+  --chart-cat-3: #f29900;
+  --chart-cat-4: #7c5cbf;
+  --chart-cat-5: #9e4300;
+  --chart-cat-6: #1e8e3e;
 
-  /* Status palette — fixed, mode-invariant per the dataviz skill ("never
-     themed"); declared once here so nothing else re-derives it. */
-  --status-good: #0ca30c;
-  --status-warning: #fab219;
-  --status-serious: #ec835a;
-  --status-critical: #d03b3b;
+  /* Status palette — fixed, mode-invariant per the dataviz skill;
+     reuses the app's own financial semantics rather than re-deriving
+     a parallel scale. */
+  --status-good: var(--billing-green);
+  --status-warning: var(--exception-orange);
+  --status-serious: var(--tertiary);
+  --status-critical: var(--high-emphasis-red);
 
-  /* Diverging pair (blue<->red, neutral gray midpoint) — light column. */
-  --chart-diverging-negative: var(--chart-cat-1);
-  --chart-diverging-neutral: #f0efec;
-  --chart-diverging-positive: var(--chart-cat-8);
+  /* Diverging pair — cool primary vs. warm exception-orange (never
+     red/green, which the CVD check above already rules out). */
+  --chart-diverging-negative: var(--primary);
+  --chart-diverging-neutral: var(--surface-container-high);
+  --chart-diverging-positive: var(--exception-orange);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
 
-    --bg: #12161c;
-    --surface: #1b222b;
-    --surface-raised: #232b36;
-    --surface-sunken: #0d1116;
-    --border: #313b47;
-    --border-strong: #445062;
+    --surface: #12131a;
+    --surface-dim: #0e0f15;
+    --surface-bright: #34363e;
+    --surface-container-lowest: #0c0d13;
+    --surface-container-low: #191c23;
+    --surface-container: #1d2028;
+    --surface-container-high: #272a33;
+    --surface-container-highest: #32353e;
+    --surface-variant: #414754;
+    --background: #12131a;
+    --on-surface: #e1e2ec;
+    --on-surface-variant: #c4c6d0;
+    --inverse-surface: #e1e2ec;
+    --inverse-on-surface: #2d3038;
+    --outline: #8e9099;
+    --outline-variant: #43474e;
+    --surface-tint: #adc7ff;
 
-    --text: #e7e7e2;
-    --text-muted: #9aa5a2;
-    --text-faint: #6b7570;
-    --text-on-accent: #0a1512;
-    --text-on-gold: #241a08;
+    --primary: #adc7ff;
+    --on-primary: #002e69;
+    --primary-container: #004493;
+    --on-primary-container: #d8e2ff;
+    --inverse-primary: #005bbf;
 
-    --accent: #3fc6b8;
-    --accent-strong: #63d8cc;
-    --accent-tint: #163330;
+    --secondary: #adc9ed;
+    --on-secondary: #001d36;
+    --secondary-container: #2d4867;
+    --on-secondary-container: #d1e4ff;
 
-    --gold: #d9a94a;
-    --gold-strong: #e8bd6a;
-    --gold-tint: #2e2717;
+    --tertiary: #ffb691;
+    --on-tertiary: #341100;
+    --tertiary-container: #783100;
+    --on-tertiary-container: #ffdbcb;
 
-    --danger: #e0837e;
-    --danger-strong: #ea9d99;
-    --danger-tint: #3a2020;
+    --error: #ffb4ab;
+    --on-error: #690005;
+    --error-container: #93000a;
+    --on-error-container: #ffdad6;
 
-    --success: #4fbf9b;
-    --success-tint: #16332a;
+    --billing-green: #7dda92;
+    --billing-green-container: #143b20;
+    --billing-green-border: #1e5631;
+    --high-emphasis-red: #ff8a80;
+    --exception-orange: #ffb74d;
+    --exception-orange-container: #4a3600;
+    --exception-orange-border: #6b4e00;
 
-    --focus-ring: #3fc6b8;
+    --bg: var(--background);
+    --surface-raised: var(--surface-container-low);
+    --surface-sunken: var(--surface-container);
+    --border: var(--outline-variant);
+    --border-strong: var(--outline);
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.45);
+    --text: var(--on-surface);
+    --text-muted: var(--on-surface-variant);
+    --text-faint: var(--outline);
+    --text-on-accent: var(--on-primary);
+    --text-on-gold: var(--on-tertiary);
 
-    --chart-grid: #2c2c2a;
-    --chart-axis: #383835;
+    --accent: var(--primary);
+    --accent-strong: var(--primary-fixed-dim);
+    --accent-tint: var(--primary-container);
 
-    /* dataviz skill's reference categorical order (dark column),
-       re-validated against --chart-surface #1b222b / page-plane #12161c
-       — ALL CHECKS PASS, all 8 slots clear 3:1 contrast. */
-    --chart-cat-1: #3987e5;
-    --chart-cat-2: #d95926;
-    --chart-cat-3: #199e70;
-    --chart-cat-4: #c98500;
-    --chart-cat-5: #d55181;
-    --chart-cat-6: #008300;
-    --chart-cat-7: #9085e9;
-    --chart-cat-8: #e66767;
+    --gold: var(--tertiary);
+    --gold-strong: var(--tertiary-fixed-dim);
+    --gold-tint: var(--tertiary-container);
 
-    --chart-diverging-negative: var(--chart-cat-1);
-    --chart-diverging-neutral: #383835;
-    --chart-diverging-positive: var(--chart-cat-8);
+    --danger: var(--high-emphasis-red);
+    --danger-strong: var(--on-error-container);
+    --danger-tint: var(--error-container);
+
+    --success: var(--billing-green);
+    --success-tint: var(--billing-green-container);
+
+    --focus-ring: var(--primary);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.5);
+    --shadow-sheet: -4px 0 24px rgba(0, 0, 0, 0.55);
+
+    --chart-grid: #2c2f38;
+    --chart-axis: #3a3d47;
+
+    /* Same fixed order as light, re-validated against this dark
+       surface (validate_palette.js --mode dark). */
+    --chart-cat-1: #ef4444;
+    --chart-cat-2: #3b82f6;
+    --chart-cat-3: #c67c11;
+    --chart-cat-4: #8b5cf6;
+    --chart-cat-5: #b45309;
+    --chart-cat-6: #16a34a;
+
+    --status-good: var(--billing-green);
+    --status-warning: var(--exception-orange);
+    --status-serious: #b45309;
+    --status-critical: var(--high-emphasis-red);
+
+    --chart-diverging-negative: #3b82f6;
+    --chart-diverging-neutral: #3a3d47;
+    --chart-diverging-positive: #c67c11;
   }
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --bg: #12161c;
-  --surface: #1b222b;
-  --surface-raised: #232b36;
-  --surface-sunken: #0d1116;
-  --border: #313b47;
-  --border-strong: #445062;
+  --surface: #12131a;
+  --surface-dim: #0e0f15;
+  --surface-bright: #34363e;
+  --surface-container-lowest: #0c0d13;
+  --surface-container-low: #191c23;
+  --surface-container: #1d2028;
+  --surface-container-high: #272a33;
+  --surface-container-highest: #32353e;
+  --surface-variant: #414754;
+  --background: #12131a;
+  --on-surface: #e1e2ec;
+  --on-surface-variant: #c4c6d0;
+  --inverse-surface: #e1e2ec;
+  --inverse-on-surface: #2d3038;
+  --outline: #8e9099;
+  --outline-variant: #43474e;
+  --surface-tint: #adc7ff;
 
-  --text: #e7e7e2;
-  --text-muted: #9aa5a2;
-  --text-faint: #6b7570;
-  --text-on-accent: #0a1512;
-  --text-on-gold: #241a08;
+  --primary: #adc7ff;
+  --on-primary: #002e69;
+  --primary-container: #004493;
+  --on-primary-container: #d8e2ff;
+  --inverse-primary: #005bbf;
 
-  --accent: #3fc6b8;
-  --accent-strong: #63d8cc;
-  --accent-tint: #163330;
+  --secondary: #adc9ed;
+  --on-secondary: #001d36;
+  --secondary-container: #2d4867;
+  --on-secondary-container: #d1e4ff;
 
-  --gold: #d9a94a;
-  --gold-strong: #e8bd6a;
-  --gold-tint: #2e2717;
+  --tertiary: #ffb691;
+  --on-tertiary: #341100;
+  --tertiary-container: #783100;
+  --on-tertiary-container: #ffdbcb;
 
-  --danger: #e0837e;
-  --danger-strong: #ea9d99;
-  --danger-tint: #3a2020;
+  --error: #ffb4ab;
+  --on-error: #690005;
+  --error-container: #93000a;
+  --on-error-container: #ffdad6;
 
-  --success: #4fbf9b;
-  --success-tint: #16332a;
+  --billing-green: #7dda92;
+  --billing-green-container: #143b20;
+  --billing-green-border: #1e5631;
+  --high-emphasis-red: #ff8a80;
+  --exception-orange: #ffb74d;
+  --exception-orange-container: #4a3600;
+  --exception-orange-border: #6b4e00;
 
-  --focus-ring: #3fc6b8;
+  --bg: var(--background);
+  --surface-raised: var(--surface-container-low);
+  --surface-sunken: var(--surface-container);
+  --border: var(--outline-variant);
+  --border-strong: var(--outline);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --text: var(--on-surface);
+  --text-muted: var(--on-surface-variant);
+  --text-faint: var(--outline);
+  --text-on-accent: var(--on-primary);
+  --text-on-gold: var(--on-tertiary);
 
-  --chart-grid: #2c2c2a;
-  --chart-axis: #383835;
+  --accent: var(--primary);
+  --accent-strong: var(--primary-fixed-dim);
+  --accent-tint: var(--primary-container);
 
-  --chart-cat-1: #3987e5;
-  --chart-cat-2: #d95926;
-  --chart-cat-3: #199e70;
-  --chart-cat-4: #c98500;
-  --chart-cat-5: #d55181;
-  --chart-cat-6: #008300;
-  --chart-cat-7: #9085e9;
-  --chart-cat-8: #e66767;
+  --gold: var(--tertiary);
+  --gold-strong: var(--tertiary-fixed-dim);
+  --gold-tint: var(--tertiary-container);
 
-  --chart-diverging-negative: var(--chart-cat-1);
-  --chart-diverging-neutral: #383835;
-  --chart-diverging-positive: var(--chart-cat-8);
+  --danger: var(--high-emphasis-red);
+  --danger-strong: var(--on-error-container);
+  --danger-tint: var(--error-container);
+
+  --success: var(--billing-green);
+  --success-tint: var(--billing-green-container);
+
+  --focus-ring: var(--primary);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.5);
+  --shadow-sheet: -4px 0 24px rgba(0, 0, 0, 0.55);
+
+  --chart-grid: #2c2f38;
+  --chart-axis: #3a3d47;
+
+  --chart-cat-1: #ef4444;
+  --chart-cat-2: #3b82f6;
+  --chart-cat-3: #c67c11;
+  --chart-cat-4: #8b5cf6;
+  --chart-cat-5: #b45309;
+  --chart-cat-6: #16a34a;
+
+  --status-good: var(--billing-green);
+  --status-warning: var(--exception-orange);
+  --status-serious: #b45309;
+  --status-critical: var(--high-emphasis-red);
+
+  --chart-diverging-negative: #3b82f6;
+  --chart-diverging-neutral: #3a3d47;
+  --chart-diverging-positive: #c67c11;
 }
