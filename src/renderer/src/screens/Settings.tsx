@@ -1191,7 +1191,7 @@ function Settings(): React.JSX.Element {
   }
 
   return (
-    <section className="screen-placeholder">
+    <section className="screen-shell">
       <h1>Settings</h1>
 
       <BrandingSection />

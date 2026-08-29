@@ -53,3 +53,19 @@ export async function buildFinancialTrend(
 
   return points
 }
+
+/** Portfolio sparklines — one service call, parallel per-client trend queries. */
+export async function buildPortfolioSparklines(
+  connection: DuckDBConnection,
+  clientIds: number[],
+  endMonth: string,
+  monthsBack = 6
+): Promise<Array<{ clientId: number; grossCharges: number[] }>> {
+  const uniqueIds = [...new Set(clientIds)].filter((id) => id > 0)
+  return Promise.all(
+    uniqueIds.map(async (clientId) => {
+      const points = await buildFinancialTrend(connection, clientId, endMonth, monthsBack)
+      return { clientId, grossCharges: points.map((p) => p.grossCharges) }
+    })
+  )
+}

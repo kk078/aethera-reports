@@ -126,7 +126,7 @@ function ManualEntry(): React.JSX.Element {
   }
 
   return (
-    <section className="screen-placeholder">
+    <section className="screen-shell">
       <h1>Manual Entry</h1>
       <p>
         Monthly summary fallback — authoritative for a client-month when claim-level data has not

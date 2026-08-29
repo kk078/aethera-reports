@@ -10,7 +10,7 @@ interface ScreenPlaceholderProps {
  */
 function ScreenPlaceholder({ title, description }: ScreenPlaceholderProps): React.JSX.Element {
   return (
-    <section className="screen-placeholder">
+    <section className="screen-shell">
       <h1>{title}</h1>
       <p>{description}</p>
     </section>

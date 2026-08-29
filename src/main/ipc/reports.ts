@@ -27,4 +27,14 @@ export function registerReportsHandlers(dataService: IDataService): void {
     )
     return parseIpcResponse('reports:trend', { points })
   })
+
+  ipcMain.handle('reports:portfolioSparklines', async (_event, rawPayload: unknown) => {
+    const request = parseIpcRequest('reports:portfolioSparklines', rawPayload)
+    const sparklines = await dataService.getPortfolioSparklines(
+      request.clientIds,
+      request.endPeriodMonth,
+      request.monthsBack
+    )
+    return parseIpcResponse('reports:portfolioSparklines', { sparklines })
+  })
 }

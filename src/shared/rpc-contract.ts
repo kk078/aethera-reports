@@ -75,6 +75,8 @@ import {
   payerMixTrendPointSchema,
   payerVsPatientSplitSchema,
   portalSettingsSchema,
+  portfolioSparklineRowSchema,
+  portfolioSparklinesInputSchema,
   quarantineRowSchema,
   referenceApiCacheRefreshResultSchema,
   referenceApiSettingsInputSchema,
@@ -479,6 +481,17 @@ export const rpcContract = {
     response: z.object({ points: z.array(financialTrendPointSchema) }),
     invoke: async (ds, req) => ({
       points: await ds.getClientFinancialTrend(req.clientId, req.endPeriodMonth, req.monthsBack)
+    })
+  }),
+  getPortfolioSparklines: defineMethod({
+    request: portfolioSparklinesInputSchema,
+    response: z.object({ sparklines: z.array(portfolioSparklineRowSchema) }),
+    invoke: async (ds, req) => ({
+      sparklines: await ds.getPortfolioSparklines(
+        req.clientIds,
+        req.endPeriodMonth,
+        req.monthsBack
+      )
     })
   }),
 

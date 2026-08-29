@@ -1,48 +1,26 @@
 import { useEffect, useState } from 'react'
-import type { Client, PayerAnalysisRow, PayerMixTrendPoint } from '../../../shared/domain'
-import { getPayerAnalysis, getPayerMixTrend, listClients } from '../lib/api'
+import type { PayerAnalysisRow, PayerMixTrendPoint } from '../../../shared/domain'
+import { fmtLag, fmtMoney, fmtPct } from '../../../shared/format'
 import TrendBarChart from '../components/charts/TrendBarChart'
 import PayerComparisonChart from '../components/charts/PayerComparisonChart'
+import AsyncState from '../components/ui/AsyncState'
+import ScreenHeader from '../components/ui/ScreenHeader'
+import ScreenShell from '../components/ui/ScreenShell'
+import { useAppScope } from '../lib/app-scope'
+import { getPayerAnalysis, getPayerMixTrend } from '../lib/api'
 
-function currentMonthValue(): string {
-  const now = new Date()
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
-}
-
-function fmtMoney(value: number): string {
-  return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-}
-function fmtPct(value: number | null): string {
-  return value === null ? 'no data' : `${value}%`
-}
-function fmtLag(value: number | null, sampleCount: number): string {
-  return value === null || sampleCount === 0
-    ? 'insufficient data'
-    : `${value} days (n=${sampleCount})`
-}
-
-/** Payer Analysis screen (plan §5): mix over time, avg allowed vs. charge, payment lag, denial rate by payer. */
+/** Payer Analysis: mix over time, avg allowed vs. charge, payment lag, denial rate by payer. */
 function Payers(): React.JSX.Element {
-  const [clients, setClients] = useState<Client[]>([])
-  const [clientId, setClientId] = useState<number | ''>('') // '' = all clients (the default)
-  const [period, setPeriod] = useState(currentMonthValue())
+  const { period, clientId } = useAppScope()
   const [rows, setRows] = useState<PayerAnalysisRow[]>([])
   const [mixTrend, setMixTrend] = useState<PayerMixTrendPoint[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    void listClients().then(setClients)
-  }, [])
-
-  useEffect(() => {
     setLoading(true)
     setError(null)
-    const scopedClientId = clientId === '' ? null : clientId
-    Promise.all([
-      getPayerAnalysis(scopedClientId, period),
-      getPayerMixTrend(scopedClientId, period)
-    ])
+    Promise.all([getPayerAnalysis(clientId, period), getPayerMixTrend(clientId, period)])
       .then(([analysisRows, trendPoints]) => {
         setRows(analysisRows)
         setMixTrend(trendPoints)
@@ -63,35 +41,13 @@ function Payers(): React.JSX.Element {
   const hasAnyLagData = rows.some((r) => r.lagSampleCount > 0)
 
   return (
-    <section className="screen-placeholder">
-      <h1>Payer Analysis</h1>
-      <p>Payer mix over time, avg allowed vs. charge, payment lag, and denial rate by payer.</p>
+    <ScreenShell>
+      <ScreenHeader
+        title="Payer Analysis"
+        description="Payer mix over time, avg allowed vs. charge, payment lag, and denial rate by payer."
+      />
 
-      <div className="manual-entry-controls">
-        <label>
-          Client
-          <select
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value ? Number(e.target.value) : '')}
-          >
-            <option value="">All clients</option>
-            {clients.map((c) => (
-              <option key={c.clientId} value={c.clientId}>
-                {c.code} — {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Period
-          <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
-        </label>
-      </div>
-
-      {error && <p className="form-error">{error}</p>}
-      {loading ? (
-        <p>Loading…</p>
-      ) : (
+      <AsyncState loading={loading} error={error}>
         <>
           <section className="report-doc-section">
             <h2>Payer mix over time (top 5 by charges)</h2>
@@ -144,7 +100,7 @@ function Payers(): React.JSX.Element {
                       <td>{row.claimsCount}</td>
                       <td>{fmtMoney(row.totalCharge)}</td>
                       <td>{fmtMoney(row.totalAllowed)}</td>
-                      <td>{fmtPct(row.denialRatePct)}</td>
+                      <td>{fmtPct(row.denialRatePct, 'no data')}</td>
                       <td>{fmtLag(row.avgLagDays, row.lagSampleCount)}</td>
                     </tr>
                   ))}
@@ -153,8 +109,8 @@ function Payers(): React.JSX.Element {
             )}
           </section>
         </>
-      )}
-    </section>
+      </AsyncState>
+    </ScreenShell>
   )
 }
 

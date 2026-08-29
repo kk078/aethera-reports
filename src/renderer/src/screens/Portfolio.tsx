@@ -1,27 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { ClientReport, ExportFormat } from '../../../shared/domain'
+import type { ClientReport, ExportFormat, ImportJob } from '../../../shared/domain'
+import { fmtMoney, fmtPct } from '../../../shared/format'
+import Sparkline from '../components/charts/Sparkline'
+import AttentionPanel, { type AttentionItem } from '../components/ui/AttentionPanel'
+import AsyncState from '../components/ui/AsyncState'
+import ScreenHeader from '../components/ui/ScreenHeader'
+import ScreenShell from '../components/ui/ScreenShell'
+import { useAppScope } from '../lib/app-scope'
 import {
   generateClientReportBatch,
-  getClientFinancialTrend,
   getPortfolioReports,
-  listClients
+  getPortfolioSparklines,
+  listClients,
+  listImportJobs
 } from '../lib/api'
-import Sparkline from '../components/charts/Sparkline'
 
 const ALL_FORMATS: ExportFormat[] = ['pdf', 'pptx', 'xlsx']
-
-function currentMonthValue(): string {
-  const now = new Date()
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
-}
-
-function fmtPct(value: number | null): string {
-  return value === null ? '—' : `${value}%`
-}
-function fmtMoney(value: number): string {
-  return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-}
 
 interface Row {
   clientId: number
@@ -29,10 +24,62 @@ interface Row {
   sparkline: number[]
 }
 
-/** All-clients KPI table with trailing-charges sparklines (plan §5). */
+function reportNeedsData(report: ClientReport): boolean {
+  return (
+    report.volume.claimsSubmitted === 0 &&
+    report.financials.grossCharges === 0 &&
+    report.financials.totalCollections === 0
+  )
+}
+
+function buildAttentionItems(
+  rows: Row[],
+  importJobs: ImportJob[],
+  period: string
+): AttentionItem[] {
+  const items: AttentionItem[] = []
+
+  const missing = rows.filter(({ report }) => reportNeedsData(report))
+  if (missing.length > 0) {
+    items.push({
+      id: 'missing-data',
+      severity: 'warning',
+      title: `${missing.length} client${missing.length === 1 ? '' : 's'} with no data`,
+      detail: `No claim activity for ${period} — check imports or manual entry.`,
+      href: '/imports'
+    })
+  }
+
+  const failed = importJobs.filter((j) => j.status === 'failed').slice(0, 5)
+  for (const job of failed) {
+    items.push({
+      id: `import-failed-${job.jobId}`,
+      severity: 'critical',
+      title: `Import failed — ${job.fileName ?? job.sourceType}`,
+      detail: job.error ? String(job.error) : 'See Imports for details.',
+      href: '/imports'
+    })
+  }
+
+  const warned = importJobs.filter((j) => j.status === 'succeeded_with_warnings').slice(0, 3)
+  if (warned.length > 0) {
+    items.push({
+      id: 'import-warnings',
+      severity: 'warning',
+      title: `${warned.length} import${warned.length === 1 ? '' : 's'} with warnings`,
+      detail: 'Some rows were quarantined — review before reporting.',
+      href: '/imports'
+    })
+  }
+
+  return items
+}
+
+/** All-clients KPI table with trailing-charges sparklines and attention callouts. */
 function Portfolio(): React.JSX.Element {
-  const [period, setPeriod] = useState(currentMonthValue())
+  const { period } = useAppScope()
   const [rows, setRows] = useState<Row[]>([])
+  const [importJobs, setImportJobs] = useState<ImportJob[]>([])
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -43,24 +90,36 @@ function Portfolio(): React.JSX.Element {
   useEffect(() => {
     setLoading(true)
     setError(null)
-    Promise.all([getPortfolioReports(period), listClients()])
-      .then(async ([reports, clients]) => {
+    Promise.all([getPortfolioReports(period), listClients(), listImportJobs()])
+      .then(async ([reports, clients, jobs]) => {
+        setImportJobs(jobs)
         const idByCode = new Map(clients.map((c) => [c.code, c.clientId]))
-        const withSparklines = await Promise.all(
-          reports.map(async (report): Promise<Row> => {
-            const clientId = idByCode.get(report.client.code) ?? 0
-            const sparkline = clientId
-              ? (await getClientFinancialTrend(clientId, period, 6)).map((p) => p.grossCharges)
-              : []
-            return { clientId, report, sparkline }
-          })
-        )
+        const resolvedIds = reports
+          .map((r) => idByCode.get(r.client.code) ?? 0)
+          .filter((id) => id > 0)
+
+        const sparklines = await getPortfolioSparklines(resolvedIds, period, 6)
+        const sparklineById = new Map(sparklines.map((s) => [s.clientId, s.grossCharges]))
+
+        const withSparklines: Row[] = reports.map((report) => {
+          const clientId = idByCode.get(report.client.code) ?? 0
+          return {
+            clientId,
+            report,
+            sparkline: clientId ? (sparklineById.get(clientId) ?? []) : []
+          }
+        })
         setRows(withSparklines)
         setSelected(new Set())
       })
       .catch((err: unknown) => setError(String(err)))
       .finally(() => setLoading(false))
   }, [period])
+
+  const attentionItems = useMemo(
+    () => buildAttentionItems(rows, importJobs, period),
+    [rows, importJobs, period]
+  )
 
   async function handleBatchExport(): Promise<void> {
     if (selected.size === 0 || formats.size === 0) return
@@ -104,61 +163,70 @@ function Portfolio(): React.JSX.Element {
     })
   }
 
-  return (
-    <section className="screen-placeholder">
-      <h1>Portfolio</h1>
-      <p>Headline KPIs for every client in the selected period.</p>
+  const exportActions = (
+    <div className="toolbar-actions">
+      <span className="format-checkboxes">
+        {ALL_FORMATS.map((format) => (
+          <label key={format}>
+            <input
+              type="checkbox"
+              checked={formats.has(format)}
+              onChange={() => toggleFormat(format)}
+            />
+            {format.toUpperCase()}
+          </label>
+        ))}
+      </span>
+      <button
+        type="button"
+        disabled={selected.size === 0 || formats.size === 0 || batchRunning}
+        onClick={() => void handleBatchExport()}
+      >
+        {batchRunning ? 'Exporting…' : `Export ${selected.size || ''} selected`}
+      </button>
+    </div>
+  )
 
-      <div className="manual-entry-controls">
-        <label>
-          Period
-          <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
-        </label>
-        <span className="format-checkboxes">
-          {ALL_FORMATS.map((format) => (
-            <label key={format}>
-              <input
-                type="checkbox"
-                checked={formats.has(format)}
-                onChange={() => toggleFormat(format)}
-              />
-              {format.toUpperCase()}
-            </label>
-          ))}
-        </span>
-        <button
-          type="button"
-          disabled={selected.size === 0 || formats.size === 0 || batchRunning}
-          onClick={() => void handleBatchExport()}
-        >
-          {batchRunning ? 'Exporting…' : `Export ${selected.size || ''} selected`}
-        </button>
-      </div>
+  return (
+    <ScreenShell>
+      <ScreenHeader
+        title="Portfolio"
+        description="Headline KPIs for every client in the selected period."
+        actions={exportActions}
+      />
+
+      <AttentionPanel items={attentionItems} />
 
       {batchLog.length > 0 && (
-        <ul>
+        <ul className="batch-log">
           {batchLog.map((line) => (
             <li key={line}>{line}</li>
           ))}
         </ul>
       )}
 
-      {error && <p className="form-error">{error}</p>}
-      {loading ? (
-        <p>Loading…</p>
-      ) : rows.length === 0 ? (
-        <p>No active clients yet.</p>
-      ) : (
+      <AsyncState
+        loading={loading}
+        error={error}
+        empty={rows.length === 0}
+        emptyTitle="No active clients yet"
+        emptyDescription="Add a client to start tracking KPIs and generating report packs."
+        emptyAction={
+          <Link to="/clients" className="text-link">
+            Go to Clients
+          </Link>
+        }
+      >
         <table className="data-table">
           <thead>
             <tr>
-              <th />
-              <th>Client</th>
-              <th>Gross charges</th>
-              <th>Net collection rate</th>
-              <th>Days in A/R</th>
-              <th>Denial rate</th>
-              <th>Trend</th>
+              <th scope="col" aria-label="Select for export" />
+              <th scope="col">Client</th>
+              <th scope="col">Gross charges</th>
+              <th scope="col">Net collection rate</th>
+              <th scope="col">Days in A/R</th>
+              <th scope="col">Denial rate</th>
+              <th scope="col">Trend</th>
             </tr>
           </thead>
           <tbody>
@@ -169,13 +237,15 @@ function Portfolio(): React.JSX.Element {
                     type="checkbox"
                     checked={selected.has(clientId)}
                     disabled={!clientId}
+                    aria-label={`Select ${report.client.name}`}
                     onChange={() => toggleSelected(clientId)}
                   />
                 </td>
                 <td>
-                  <Link to={`/clients/${clientId || report.client.code}`}>
-                    {report.client.name}
-                  </Link>
+                  <Link to={`/clients/${clientId || report.client.code}`}>{report.client.name}</Link>
+                  {reportNeedsData(report) && (
+                    <span className="row-badge row-badge--warning">No data</span>
+                  )}
                 </td>
                 <td className="tabular-nums">{fmtMoney(report.financials.grossCharges)}</td>
                 <td className="tabular-nums">{fmtPct(report.financials.netCollectionRatePct)}</td>
@@ -185,15 +255,15 @@ function Portfolio(): React.JSX.Element {
                   {sparkline.length > 1 ? (
                     <Sparkline values={sparkline} />
                   ) : (
-                    <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>n/a</span>
+                    <span className="text-muted-xs">n/a</span>
                   )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      )}
-    </section>
+      </AsyncState>
+    </ScreenShell>
   )
 }
 
