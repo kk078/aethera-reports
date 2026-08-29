@@ -1156,6 +1156,8 @@ function UpdatesSection(): React.JSX.Element {
       {result &&
         (!result.checked ? (
           <p>Could not reach the update service — try again later.</p>
+        ) : result.latestVersion === null ? (
+          <p>No published releases yet — you are running a pre-release build.</p>
         ) : result.updateAvailable ? (
           <p>
             Version {result.latestVersion} is available —{' '}

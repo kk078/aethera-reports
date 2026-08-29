@@ -42,6 +42,9 @@ export async function checkForUpdate(): Promise<UpdateCheckResult> {
       headers: { accept: 'application/vnd.github+json' }
     })
     clearTimeout(timer)
+    // 404 = the repo has no PUBLISHED releases yet (drafts don't count) —
+    // that's a successful check with nothing newer, not a network failure.
+    if (res.status === 404) return { ...base, checked: true }
     if (!res.ok) return base
     const body = (await res.json()) as { tag_name?: unknown; html_url?: unknown }
     if (typeof body.tag_name !== 'string') return base
