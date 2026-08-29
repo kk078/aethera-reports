@@ -400,6 +400,21 @@ export const financialTrendPointSchema = z.object({
 })
 export type FinancialTrendPoint = z.infer<typeof financialTrendPointSchema>
 
+/** Batch sparkline fetch for the Portfolio screen — one IPC round trip instead of N. */
+export const portfolioSparklinesInputSchema = z.object({
+  clientIds: z.array(z.number().int().positive()),
+  endPeriodMonth: z.string().regex(/^\d{4}-\d{2}$/),
+  monthsBack: z.number().int().positive().max(24).optional()
+})
+export type PortfolioSparklinesInput = z.infer<typeof portfolioSparklinesInputSchema>
+
+export const portfolioSparklineRowSchema = z.object({
+  clientId: z.number().int().positive(),
+  /** Trailing gross charges, oldest month first — same order as `buildFinancialTrend`. */
+  grossCharges: z.array(z.number())
+})
+export type PortfolioSparklineRow = z.infer<typeof portfolioSparklineRowSchema>
+
 // ---------------------------------------------------------------------
 // Denials / A/R / Payers analytics screens (plan §5, Phase 2 chunk B).
 // Every query behind these types is scoped by a NULLABLE clientId —

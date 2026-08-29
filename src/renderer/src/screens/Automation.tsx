@@ -181,7 +181,7 @@ function Automation(): React.JSX.Element {
   }
 
   return (
-    <section className="screen-placeholder">
+    <section className="screen-shell">
       <h1>Automation</h1>
       <p>
         Report scheduler rules, run history, and email send-queue status (plan §11). The headless

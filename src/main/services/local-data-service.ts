@@ -28,7 +28,7 @@ import { parse835 } from '../importers/x12/parse835'
 import { parse837 } from '../importers/x12/parse837'
 import { run835Import, run837Import } from '../importers/x12/run-x12-import'
 import { buildClientReport as buildClientReportFn } from '../kpi/client-report'
-import { buildFinancialTrend } from '../kpi/trend'
+import { buildFinancialTrend, buildPortfolioSparklines } from '../kpi/trend'
 import * as analytics from '../kpi/analytics'
 import {
   loginRcmPlatform,
@@ -1868,6 +1868,14 @@ export class LocalDataService implements IDataService {
     monthsBack = 6
   ): Promise<Array<{ month: string; grossCharges: number; totalCollections: number }>> {
     return buildFinancialTrend(this.duckdb.connection, clientId, endPeriodMonth, monthsBack)
+  }
+
+  async getPortfolioSparklines(
+    clientIds: number[],
+    endPeriodMonth: string,
+    monthsBack = 6
+  ): Promise<Array<{ clientId: number; grossCharges: number[] }>> {
+    return buildPortfolioSparklines(this.duckdb.connection, clientIds, endPeriodMonth, monthsBack)
   }
 
   close(): void {

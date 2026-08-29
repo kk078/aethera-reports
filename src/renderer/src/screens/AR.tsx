@@ -1,35 +1,27 @@
 import { useEffect, useState } from 'react'
 import type {
   ArAgingByClientRow,
-  Client,
   DaysInArTrendPoint,
   TopAgedClaimRow
 } from '../../../shared/domain'
+import { fmtMoney } from '../../../shared/format'
+import StackedByClientChart from '../components/charts/StackedByClientChart'
+import PayerMixChart from '../components/charts/PayerMixChart'
+import TrendBarChart from '../components/charts/TrendBarChart'
+import AsyncState from '../components/ui/AsyncState'
+import ScreenHeader from '../components/ui/ScreenHeader'
+import ScreenShell from '../components/ui/ScreenShell'
+import { useAppScope } from '../lib/app-scope'
 import {
   getArAgingByClient,
   getArPayerVsPatientSplit,
   getDaysInArTrend,
-  getTopAgedClaims,
-  listClients
+  getTopAgedClaims
 } from '../lib/api'
-import StackedByClientChart from '../components/charts/StackedByClientChart'
-import PayerMixChart from '../components/charts/PayerMixChart'
-import TrendBarChart from '../components/charts/TrendBarChart'
 
-function currentMonthValue(): string {
-  const now = new Date()
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
-}
-
-function fmtMoney(value: number): string {
-  return `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-}
-
-/** A/R screen (plan §5): aging distribution by client, payer-vs-patient split, top aged claims, days-in-AR trend. */
+/** A/R screen: aging distribution by client, payer-vs-patient split, top aged claims, days-in-A/R trend. */
 function AR(): React.JSX.Element {
-  const [clients, setClients] = useState<Client[]>([])
-  const [clientId, setClientId] = useState<number | ''>('') // '' = all clients (the default)
-  const [endPeriod, setEndPeriod] = useState(currentMonthValue())
+  const { period, clientId } = useAppScope()
   const [byClient, setByClient] = useState<ArAgingByClientRow[]>([])
   const [split, setSplit] = useState<{ insurancePortion: number; patientPortion: number } | null>(
     null
@@ -40,18 +32,16 @@ function AR(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    void listClients().then(setClients)
     void getArAgingByClient().then(setByClient)
   }, [])
 
   useEffect(() => {
     setLoading(true)
     setError(null)
-    const scopedClientId = clientId === '' ? null : clientId
     Promise.all([
-      getArPayerVsPatientSplit(scopedClientId),
-      getTopAgedClaims(scopedClientId, 25),
-      getDaysInArTrend(scopedClientId, endPeriod)
+      getArPayerVsPatientSplit(clientId),
+      getTopAgedClaims(clientId, 25),
+      getDaysInArTrend(clientId, period)
     ])
       .then(([splitResult, top, trendPoints]) => {
         setSplit(splitResult)
@@ -60,7 +50,7 @@ function AR(): React.JSX.Element {
       })
       .catch((err: unknown) => setError(String(err)))
       .finally(() => setLoading(false))
-  }, [clientId, endPeriod])
+  }, [clientId, period])
 
   const splitForChart = split
     ? [
@@ -70,43 +60,18 @@ function AR(): React.JSX.Element {
     : []
 
   return (
-    <section className="screen-placeholder">
-      <h1>A/R</h1>
-      <p>
-        Aging distribution by client, payer-vs-patient split, top aged claims, days-in-A/R trend.
-      </p>
-
-      <div className="manual-entry-controls">
-        <label>
-          Client (for split/trend/top-aged)
-          <select
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value ? Number(e.target.value) : '')}
-          >
-            <option value="">All clients</option>
-            {clients.map((c) => (
-              <option key={c.clientId} value={c.clientId}>
-                {c.code} — {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Trend end month
-          <input type="month" value={endPeriod} onChange={(e) => setEndPeriod(e.target.value)} />
-        </label>
-      </div>
-
-      {error && <p className="form-error">{error}</p>}
+    <ScreenShell>
+      <ScreenHeader
+        title="A/R"
+        description="Aging distribution by client, payer-vs-patient split, top aged claims, days-in-A/R trend."
+      />
 
       <section className="report-doc-section">
         <h2>Aging distribution by client</h2>
         <StackedByClientChart rows={byClient} />
       </section>
 
-      {loading ? (
-        <p>Loading…</p>
-      ) : (
+      <AsyncState loading={loading} error={error}>
         <>
           <section className="report-doc-section">
             <h2>Payer vs. patient split</h2>
@@ -164,8 +129,8 @@ function AR(): React.JSX.Element {
             )}
           </section>
         </>
-      )}
-    </section>
+      </AsyncState>
+    </ScreenShell>
   )
 }
 

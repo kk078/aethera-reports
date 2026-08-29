@@ -147,7 +147,7 @@ body {
    Screen chrome
    --------------------------------------------------------------------- */
 
-.screen-placeholder h1 {
+.screen-shell h1 {
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
   letter-spacing: -0.01em;
@@ -155,20 +155,20 @@ body {
   color: var(--text);
 }
 
-.screen-placeholder h2 {
+.screen-shell h2 {
   font-size: var(--text-md);
   font-weight: var(--weight-semibold);
   margin: var(--space-6) 0 var(--space-2);
   color: var(--text);
 }
 
-.screen-placeholder p {
+.screen-shell p {
   color: var(--text-muted);
   font-size: var(--text-sm);
   max-width: 68ch;
 }
 
-.screen-placeholder button {
+.screen-shell button {
   margin-top: var(--space-2);
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-md);
@@ -183,12 +183,12 @@ body {
     border-color var(--transition-fast);
 }
 
-.screen-placeholder button:hover {
+.screen-shell button:hover {
   background: var(--surface-sunken);
   border-color: var(--border-strong);
 }
 
-.screen-placeholder button:disabled {
+.screen-shell button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -196,13 +196,13 @@ body {
 /* A screen's primary call-to-action — a <button type="submit"> reads as
    the confident action; everything else stays quiet (frontend-design
    skill: "spend your boldness in one place"). */
-.screen-placeholder button[type='submit'] {
+.screen-shell button[type='submit'] {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--text-on-accent);
 }
 
-.screen-placeholder button[type='submit']:hover {
+.screen-shell button[type='submit']:hover {
   background: var(--accent-strong);
   border-color: var(--accent-strong);
 }
@@ -438,4 +438,310 @@ body {
   color: var(--text-muted);
   cursor: pointer;
   font-size: 14px;
+}
+
+/* ---------------------------------------------------------------------
+   App scope bar, screen header, async/empty states, attention panel,
+   command palette (Phase A UX cohesion)
+   --------------------------------------------------------------------- */
+
+.scope-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.scope-bar-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.scope-bar-label {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.scope-bar-search {
+  margin-left: auto;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.scope-bar-search kbd {
+  margin-left: var(--space-2);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  font-size: var(--text-2xs);
+}
+
+.screen-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.screen-header-text h1 {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-2);
+  color: var(--text);
+}
+
+.screen-header-text p {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  max-width: 68ch;
+}
+
+.screen-header-actions,
+.toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.async-loading {
+  padding: var(--space-6) 0;
+  color: var(--text-muted);
+}
+
+.async-loading-bar {
+  width: 120px;
+  height: 3px;
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(
+    90deg,
+    var(--accent-tint) 0%,
+    var(--accent) 50%,
+    var(--accent-tint) 100%
+  );
+  background-size: 200% 100%;
+  animation: async-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes async-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.empty-state {
+  padding: var(--space-8) var(--space-6);
+  text-align: center;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.empty-state h2 {
+  font-size: var(--text-md);
+  margin-bottom: var(--space-2);
+}
+
+.empty-state p {
+  color: var(--text-muted);
+  max-width: 48ch;
+  margin: 0 auto;
+}
+
+.empty-state-action {
+  margin-top: var(--space-4);
+}
+
+.text-link {
+  color: var(--accent-strong);
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+}
+
+.text-muted-xs {
+  color: var(--text-muted);
+  font-size: var(--text-2xs);
+}
+
+.attention-panel {
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.attention-panel-title {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: var(--space-3);
+}
+
+.attention-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.attention-item {
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--gold);
+}
+
+.attention-item--critical {
+  border-left-color: var(--danger);
+}
+
+.attention-item-link,
+.attention-item-body {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  text-decoration: none;
+  color: inherit;
+}
+
+.attention-item-link:hover {
+  background: var(--surface-sunken);
+}
+
+.attention-item strong {
+  display: block;
+  font-size: var(--text-sm);
+  margin-bottom: 2px;
+}
+
+.attention-item span {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.row-badge {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  vertical-align: middle;
+}
+
+.row-badge--warning {
+  background: var(--gold-tint);
+  color: var(--gold-strong);
+}
+
+.batch-log {
+  margin-bottom: var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.command-palette-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.command-palette {
+  width: min(560px, calc(100vw - 32px));
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.command-palette-input {
+  width: 100%;
+  padding: var(--space-4);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: var(--text-base);
+  outline: none;
+}
+
+.command-palette-list {
+  list-style: none;
+  overflow-y: auto;
+  padding: var(--space-2);
+}
+
+.command-palette-group {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.command-palette-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.command-palette-item.active,
+.command-palette-item:hover {
+  background: var(--accent-tint);
+}
+
+.command-palette-item-detail {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.command-palette-empty {
+  padding: var(--space-4);
+  color: var(--text-muted);
+  text-align: center;
 }

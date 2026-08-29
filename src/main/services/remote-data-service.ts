@@ -576,6 +576,14 @@ export class RemoteDataService implements IDataService {
     return (await this.callRpc('getClientFinancialTrend', { clientId, endPeriodMonth, monthsBack }))
       .points
   }
+  async getPortfolioSparklines(
+    clientIds: number[],
+    endPeriodMonth: string,
+    monthsBack?: number
+  ): Promise<Array<{ clientId: number; grossCharges: number[] }>> {
+    return (await this.callRpc('getPortfolioSparklines', { clientIds, endPeriodMonth, monthsBack }))
+      .sparklines
+  }
 
   // -------------------------------------------------------------------
   // Branding

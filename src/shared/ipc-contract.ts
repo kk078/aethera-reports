@@ -67,6 +67,8 @@ import {
   payerVsPatientSplitSchema,
   portalSettingsInputSchema,
   portalSettingsSchema,
+  portfolioSparklineRowSchema,
+  portfolioSparklinesInputSchema,
   publishToPortalInputSchema,
   publishToPortalResultSchema,
   quarantineRowSchema,
@@ -241,6 +243,10 @@ export const ipcContract = {
   'reports:trend': {
     request: clientTrendInputSchema,
     response: z.object({ points: z.array(financialTrendPointSchema) })
+  },
+  'reports:portfolioSparklines': {
+    request: portfolioSparklinesInputSchema,
+    response: z.object({ sparklines: z.array(portfolioSparklineRowSchema) })
   },
 
   // --- Backups / integrity (Risk 5, restore added step 9) ---

@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
-import type { Client, DenialListRow, MonthlyRateTrendPoint } from '../../../shared/domain'
-import { getCarcDescriptions, getDenialRateTrend, listClients, listDenials } from '../lib/api'
+import type { DenialListRow, MonthlyRateTrendPoint } from '../../../shared/domain'
 import DenialsParetoChart from '../components/charts/DenialsParetoChart'
 import TrendBarChart from '../components/charts/TrendBarChart'
-
-function currentMonthValue(): string {
-  const now = new Date()
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
-}
+import AsyncState from '../components/ui/AsyncState'
+import ScreenHeader from '../components/ui/ScreenHeader'
+import ScreenShell from '../components/ui/ScreenShell'
+import { useAppScope } from '../lib/app-scope'
+import { getCarcDescriptions, getDenialRateTrend, listDenials } from '../lib/api'
 
 function countBy(
   rows: DenialListRow[],
@@ -21,11 +20,9 @@ function countBy(
   return counts
 }
 
-/** Denials screen (plan §5): CARC pareto, by-payer table, denial-rate trend, root-cause breakdown, filterable drill-down list. */
+/** Denials screen: CARC pareto, by-payer table, denial-rate trend, root-cause breakdown, drill-down list. */
 function Denials(): React.JSX.Element {
-  const [clients, setClients] = useState<Client[]>([])
-  const [clientId, setClientId] = useState<number | ''>('') // '' = all clients (the default)
-  const [period, setPeriod] = useState(currentMonthValue())
+  const { period, clientId } = useAppScope()
   const [rows, setRows] = useState<DenialListRow[]>([])
   const [trend, setTrend] = useState<MonthlyRateTrendPoint[]>([])
   const [carcDescriptions, setCarcDescriptions] = useState<Record<string, string>>({})
@@ -33,22 +30,15 @@ function Denials(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    void listClients().then(setClients)
-  }, [])
-
-  useEffect(() => {
     setLoading(true)
     setError(null)
-    const scopedClientId = clientId === '' ? null : clientId
-    Promise.all([listDenials(scopedClientId, period), getDenialRateTrend(scopedClientId, period)])
+    Promise.all([listDenials(clientId, period), getDenialRateTrend(clientId, period)])
       .then(([denialRows, ratePoints]) => {
         setRows(denialRows)
         setTrend(ratePoints)
         const codes = Array.from(
           new Set(denialRows.map((r) => r.carcCode).filter((c): c is string => !!c))
         )
-        // Cached-only lookup (plan chunk C's last Denials bullet) — never
-        // blocks the screen; codes with no cache entry just show none.
         if (codes.length > 0) void getCarcDescriptions(codes).then(setCarcDescriptions)
         else setCarcDescriptions({})
       })
@@ -61,35 +51,13 @@ function Denials(): React.JSX.Element {
   const byRootCause = countBy(rows, (r) => r.rootCauseStage ?? 'unclassified')
 
   return (
-    <section className="screen-placeholder">
-      <h1>Denials</h1>
-      <p>CARC pareto, by payer, by root cause, and a filterable drill-down list.</p>
+    <ScreenShell>
+      <ScreenHeader
+        title="Denials"
+        description="CARC pareto, by payer, by root cause, and a filterable drill-down list."
+      />
 
-      <div className="manual-entry-controls">
-        <label>
-          Client
-          <select
-            value={clientId}
-            onChange={(e) => setClientId(e.target.value ? Number(e.target.value) : '')}
-          >
-            <option value="">All clients</option>
-            {clients.map((c) => (
-              <option key={c.clientId} value={c.clientId}>
-                {c.code} — {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Period
-          <input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} />
-        </label>
-      </div>
-
-      {error && <p className="form-error">{error}</p>}
-      {loading ? (
-        <p>Loading…</p>
-      ) : (
+      <AsyncState loading={loading} error={error}>
         <>
           <section className="report-doc-section">
             <h2>CARC pareto</h2>
@@ -199,8 +167,8 @@ function Denials(): React.JSX.Element {
             )}
           </section>
         </>
-      )}
-    </section>
+      </AsyncState>
+    </ScreenShell>
   )
 }
 

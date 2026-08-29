@@ -204,6 +204,11 @@ export interface IDataService {
     endPeriodMonth: string,
     monthsBack?: number
   ): Promise<Array<{ month: string; grossCharges: number; totalCollections: number }>>
+  getPortfolioSparklines(
+    clientIds: number[],
+    endPeriodMonth: string,
+    monthsBack?: number
+  ): Promise<Array<{ clientId: number; grossCharges: number[] }>>
 
   // --- Branding (plan §6) ---
   getBranding(): Promise<Branding>

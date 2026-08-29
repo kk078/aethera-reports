@@ -10,10 +10,10 @@ The application is white-label: everything you see out of the box (name,
 colors, sample data) is a neutral placeholder. Your firm's branding lives
 in a local, uncommitted configuration file — never in this repository.
 
-> **Status:** early scaffold. The DuckDB + SQLite walking skeleton, the
-> hardened Electron shell, and the screen layout exist; importers, the KPI
-> engine, and exporters are still being built. See `docs/` (as it grows)
-> and the open issues for current progress.
+> **Status:** functional desktop app (v0.2). Importers (CSV/XLSX, X12,
+> RCM REST connector), the KPI engine, exporters (PDF/PPTX/XLSX), optional
+> shared server mode, and an optional client portal are implemented. See
+> `docs/` for setup guides and `CONTRIBUTING.md` for development notes.
 
 ## Why
 

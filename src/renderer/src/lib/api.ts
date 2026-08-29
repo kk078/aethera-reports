@@ -205,6 +205,19 @@ export async function getClientFinancialTrend(
   return points
 }
 
+export async function getPortfolioSparklines(
+  clientIds: number[],
+  endPeriodMonth: string,
+  monthsBack = 6
+): Promise<Array<{ clientId: number; grossCharges: number[] }>> {
+  const { sparklines } = await window.aethera.invoke('reports:portfolioSparklines', {
+    clientIds,
+    endPeriodMonth,
+    monthsBack
+  })
+  return sparklines
+}
+
 // --- Denials / A/R / Payers analytics screens ---
 
 export async function listDenials(

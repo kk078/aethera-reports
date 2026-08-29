@@ -102,7 +102,7 @@ function Clients(): React.JSX.Element {
   }
 
   return (
-    <section className="screen-placeholder">
+    <section className="screen-shell">
       <h1>Clients</h1>
       <p>The 75+ practices this install bills for — client-level contract terms live here.</p>
 

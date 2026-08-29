@@ -23,7 +23,7 @@ function Imports(): React.JSX.Element {
   }, [])
 
   return (
-    <section className="screen-placeholder">
+    <section className="screen-shell">
       <h1>Imports</h1>
       <p>CSV/XLSX claim exports: pick a file, map its columns, preview, then load it.</p>
 
