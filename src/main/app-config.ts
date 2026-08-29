@@ -27,9 +27,11 @@ export interface AppConfig {
     username: string
     encryptedPassword: EncryptedSecret | null
   } | null
+  /** Opt-in launch-time update check (SECURITY.md: off by default). */
+  autoCheckUpdates: boolean
 }
 
-const DEFAULT_CONFIG: AppConfig = { dataMode: 'local', server: null }
+const DEFAULT_CONFIG: AppConfig = { dataMode: 'local', server: null, autoCheckUpdates: false }
 
 function configPath(userDataDir: string): string {
   return join(userDataDir, 'app-config.json')
@@ -41,10 +43,11 @@ export function loadAppConfig(userDataDir: string): AppConfig {
   if (!existsSync(path)) return DEFAULT_CONFIG
   try {
     const raw = JSON.parse(readFileSync(path, 'utf-8')) as Partial<AppConfig>
+    const autoCheckUpdates = raw.autoCheckUpdates === true
     if (raw.dataMode === 'server' && raw.server) {
-      return { dataMode: 'server', server: raw.server }
+      return { dataMode: 'server', server: raw.server, autoCheckUpdates }
     }
-    return DEFAULT_CONFIG
+    return { ...DEFAULT_CONFIG, autoCheckUpdates }
   } catch {
     return DEFAULT_CONFIG
   }

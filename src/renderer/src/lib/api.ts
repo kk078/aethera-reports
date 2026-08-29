@@ -19,6 +19,8 @@ import type {
   ConnectorSyncStatusRow,
   ConnectorTestResult,
   DataModeStatus,
+  UpdateCheckResult,
+  UpdateSettingsStatus,
   DaysInArTrendPoint,
   DenialListRow,
   DryRunResult,
@@ -476,6 +478,20 @@ export function sendReportPackNow(
 export async function listExportAuditLog(): Promise<ExportAuditLogRow[]> {
   const { rows } = await window.aethera.invoke('automation:listExportAuditLog', {})
   return rows
+}
+
+// --- Opt-in update check (notify only) ---
+
+export function getUpdateStatus(): Promise<UpdateSettingsStatus> {
+  return window.aethera.invoke('updates:getStatus', {})
+}
+
+export function setAutoCheckUpdates(enabled: boolean): Promise<UpdateSettingsStatus> {
+  return window.aethera.invoke('updates:setAutoCheck', { enabled })
+}
+
+export function checkForUpdatesNow(): Promise<UpdateCheckResult> {
+  return window.aethera.invoke('updates:checkNow', {})
 }
 
 // --- Data mode: Local / Server (plan's Phase 3 addendum, chunk E) ---

@@ -417,3 +417,25 @@ body {
   box-shadow: var(--shadow-md);
   padding: var(--space-6);
 }
+
+/* Launch-time "new version available" banner (opt-in check; App.tsx). */
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.update-banner button {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+}

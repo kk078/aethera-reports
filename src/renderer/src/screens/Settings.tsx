@@ -5,6 +5,8 @@ import type {
   Client,
   ConnectorSyncStatusRow,
   DataModeStatus,
+  UpdateCheckResult,
+  UpdateSettingsStatus,
   EmailSettings,
   MappingTemplate,
   ReferenceApiCacheRefreshResult
@@ -21,6 +23,9 @@ import {
   getConnectorSettings,
   getConnectorSyncStatus,
   getDataMode,
+  getUpdateStatus,
+  setAutoCheckUpdates,
+  checkForUpdatesNow,
   getEmailSettings,
   getPortalSettings,
   getReferenceApiSettings,
@@ -1097,6 +1102,75 @@ function EmailSection(): React.JSX.Element {
   )
 }
 
+function UpdatesSection(): React.JSX.Element {
+  const [status, setStatus] = useState<UpdateSettingsStatus | null>(null)
+  const [result, setResult] = useState<UpdateCheckResult | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    getUpdateStatus()
+      .then((s) => {
+        setStatus(s)
+        if (s.startupResult) setResult(s.startupResult)
+      })
+      .catch(() => undefined)
+  }, [])
+
+  async function handleToggle(enabled: boolean): Promise<void> {
+    try {
+      setStatus(await setAutoCheckUpdates(enabled))
+    } catch {
+      /* leave prior state */
+    }
+  }
+
+  async function handleCheckNow(): Promise<void> {
+    setBusy(true)
+    try {
+      setResult(await checkForUpdatesNow())
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <h2>Updates</h2>
+      <p>
+        Version {status?.currentVersion ?? '…'}. Checking contacts github.com once and only reads
+        the latest release number — nothing is downloaded or installed automatically.
+      </p>
+      <label>
+        <input
+          type="checkbox"
+          checked={status?.autoCheckUpdates ?? false}
+          onChange={(e) => void handleToggle(e.target.checked)}
+        />{' '}
+        Check for updates when the app starts
+      </label>
+      <div>
+        <button type="button" disabled={busy} onClick={() => void handleCheckNow()}>
+          {busy ? 'Checking…' : 'Check now'}
+        </button>
+      </div>
+      {result &&
+        (!result.checked ? (
+          <p>Could not reach the update service — try again later.</p>
+        ) : result.updateAvailable ? (
+          <p>
+            Version {result.latestVersion} is available —{' '}
+            <a href={result.releaseUrl} target="_blank" rel="noreferrer">
+              open the release page
+            </a>{' '}
+            to download it.
+          </p>
+        ) : (
+          <p>You are on the latest version.</p>
+        ))}
+    </>
+  )
+}
+
 /**
  * Settings: branding (plan §6), backup status + restore (Risk 5,
  * deferred from step 4), and the IPC round-trip diagnostic from step 3.
@@ -1128,6 +1202,7 @@ function Settings(): React.JSX.Element {
       <PortalSection />
       <BackupsSection />
       <DataModeSection />
+      <UpdatesSection />
 
       <h2>Diagnostics</h2>
       <p>Verifies the preload → zod IPC → main round trip.</p>

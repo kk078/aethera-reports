@@ -12,6 +12,7 @@ import { registerRcmConnectorHandlers } from './rcm-connector'
 import { registerReferenceApiHandlers } from './reference-api'
 import { registerAutomationHandlers } from './automation'
 import { registerDataModeHandlers } from './data-mode'
+import { registerUpdateHandlers } from './updates'
 import { registerPortalHandlers } from './portal'
 import { registerPrintReadyHandler } from '../exporters/print-ready'
 import type { IDataService } from '../services/data-service'
@@ -19,6 +20,7 @@ import type { IDataService } from '../services/data-service'
 export function registerIpcHandlers(dataService: IDataService, userDataDir: string): void {
   registerPingHandler()
   registerDataModeHandlers(userDataDir)
+  registerUpdateHandlers(userDataDir)
   registerPortalHandlers(dataService)
   registerClientsHandlers(dataService)
   registerMappingTemplateHandlers(dataService)

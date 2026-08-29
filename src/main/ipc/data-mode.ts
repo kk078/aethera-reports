@@ -29,7 +29,11 @@ export function registerDataModeHandlers(userDataDir: string): void {
 
   ipcMain.handle('dataMode:setLocal', async (_event, rawPayload: unknown) => {
     parseIpcRequest('dataMode:setLocal', rawPayload)
-    const config: AppConfig = { dataMode: 'local', server: null }
+    const config: AppConfig = {
+      dataMode: 'local',
+      server: null,
+      autoCheckUpdates: loadAppConfig(userDataDir).autoCheckUpdates
+    }
     saveAppConfig(userDataDir, config)
     return parseIpcResponse('dataMode:setLocal', statusFromConfig(config))
   })
@@ -42,7 +46,8 @@ export function registerDataModeHandlers(userDataDir: string): void {
         baseUrl: request.baseUrl,
         username: request.username,
         encryptedPassword: encryptCredential(request.password)
-      }
+      },
+      autoCheckUpdates: loadAppConfig(userDataDir).autoCheckUpdates
     }
     saveAppConfig(userDataDir, config)
     return parseIpcResponse('dataMode:setServer', statusFromConfig(config))

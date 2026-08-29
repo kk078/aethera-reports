@@ -937,6 +937,24 @@ export const dataModeStatusSchema = z.object({
 })
 export type DataModeStatus = z.infer<typeof dataModeStatusSchema>
 
+// Opt-in update check (checks and notifies only; no download/install).
+export const updateCheckResultSchema = z.object({
+  checked: z.boolean(),
+  updateAvailable: z.boolean(),
+  currentVersion: z.string(),
+  latestVersion: z.string().nullable(),
+  releaseUrl: z.string(),
+  checkedAt: z.string()
+})
+export type UpdateCheckResult = z.infer<typeof updateCheckResultSchema>
+
+export const updateSettingsStatusSchema = z.object({
+  autoCheckUpdates: z.boolean(),
+  currentVersion: z.string(),
+  startupResult: updateCheckResultSchema.nullable()
+})
+export type UpdateSettingsStatus = z.infer<typeof updateSettingsStatusSchema>
+
 export const setServerDataModeInputSchema = z.object({
   baseUrl: z.string().min(1),
   username: z.string().min(1),

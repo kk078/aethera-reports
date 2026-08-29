@@ -12,7 +12,12 @@ does and does not do for you:
   database (`meta.db`), both under the OS-standard Electron `userData`
   directory. There is no server component and no cloud sync in v1.
 - **The app ships no telemetry.** It does not phone home, does not report
-  usage analytics, and does not auto-update over the network.
+  usage analytics, and does not auto-update over the network. The one
+  network-touching convenience is the **update check** — a single request
+  to the public GitHub Releases API that reads the latest version number
+  and downloads nothing. It runs only when a user clicks "Check now" in
+  Settings, or at launch if the user has explicitly enabled the
+  launch-time check there (off by default).
 - **You are responsible for the HIPAA compliance of your deployment.**
   That includes, at minimum: full-disk encryption on any machine running
   the app (the Settings screen checks Windows BitLocker status and warns

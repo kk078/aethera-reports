@@ -37,6 +37,8 @@ import {
   connectorSyncStatusRowSchema,
   connectorTestResultSchema,
   dataModeStatusSchema,
+  updateCheckResultSchema,
+  updateSettingsStatusSchema,
   daysInArTrendPointSchema,
   denialListRowSchema,
   dryRunResultSchema,
@@ -472,6 +474,20 @@ export const ipcContract = {
   'app:restart': {
     request: emptyRequestSchema,
     response: z.object({ ok: z.boolean() })
+  },
+
+  // --- Opt-in update check (notify only; no download/install) ---
+  'updates:getStatus': {
+    request: emptyRequestSchema,
+    response: updateSettingsStatusSchema
+  },
+  'updates:setAutoCheck': {
+    request: z.object({ enabled: z.boolean() }),
+    response: updateSettingsStatusSchema
+  },
+  'updates:checkNow': {
+    request: emptyRequestSchema,
+    response: updateCheckResultSchema
   },
 
   // --- Hosted client portal (plan's Phase 3 addendum, chunk F) ---

@@ -11,6 +11,7 @@ import { LocalDataService } from './services/local-data-service'
 import { RemoteDataService } from './services/remote-data-service'
 import type { IDataService } from './services/data-service'
 import { loadAppConfig } from './app-config'
+import { checkForUpdate, setStartupResult } from './update-check'
 import { decryptCredential } from './credentials'
 import { loadRenderer } from './window-target'
 import { runCli } from './cli'
@@ -214,6 +215,13 @@ app.whenReady().then(async () => {
   }
 
   registerIpcHandlers(dataService, userDataDir)
+
+  // Launch-time update check — ONLY when the user opted in via Settings
+  // (app-config.json `autoCheckUpdates`, default off). Fire-and-forget;
+  // the renderer's AppLayout polls the cached result for its banner.
+  if (!isCli && loadAppConfig(userDataDir).autoCheckUpdates) {
+    void checkForUpdate().then(setStartupResult)
+  }
 
   // Headless CLI mode (plan §11): --generate / --import run without a
   // window and reuse the same IDataService/exporter paths as the UI.
