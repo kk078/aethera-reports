@@ -18,6 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # gitleaks scans commit ranges and needs full history; a shallow
+          # clone makes it fail with "unknown revision" on PR runs
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
